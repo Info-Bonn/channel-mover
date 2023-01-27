@@ -58,6 +58,21 @@ class Misc(commands.Cog):
             ephemeral=ephemeral
         )
 
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="cp", description="Copy a category-channel, does not include the channels in it")
+    @app_commands.guild_only
+    async def copy_category(self,
+                            interaction: discord.Interaction,
+                            source: discord.CategoryChannel,
+                            destination_name: str
+                            ):
+        await interaction.guild.create_category(destination_name,
+                                                overwrites=source.overwrites,
+                                                reason="cp command",
+                                                position=source.position)
+
+        await interaction.response.send_message("Copied.", ephemeral=True)
+
     # Example for an event listener
     # This one will be called on each message the bot receives
     @commands.Cog.listener()
