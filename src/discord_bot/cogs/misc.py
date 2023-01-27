@@ -1,3 +1,4 @@
+import time
 from typing import Literal, Optional
 
 import discord
@@ -72,6 +73,27 @@ class Misc(commands.Cog):
                                                 position=source.position)
 
         await interaction.response.send_message("Copied.", ephemeral=True)
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="mv", description="Move all channels from one category to an other")
+    @app_commands.guild_only
+    async def move_channels(self,
+                            interaction: discord.Interaction,
+                            category_to_move_from: discord.CategoryChannel,
+                            destination: discord.CategoryChannel,
+                            sync_perms: bool = True
+                            ):
+
+        resp: discord.InteractionResponse = interaction.response
+        await resp.defer(ephemeral=True, thinking=True)
+
+        for channel in category_to_move_from.channels:
+            await channel.move(category=destination, sync_permissions=sync_perms,
+                               reason=f"Interaction with {interaction.user.mention} issued that", end=True)
+            time.sleep(1)  # please the goods of rate-limit
+
+        followup: discord.Webhook = interaction.followup
+        await followup.send("Done :)", ephemeral=True)
 
     # Example for an event listener
     # This one will be called on each message the bot receives
