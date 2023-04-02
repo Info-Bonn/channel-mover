@@ -148,9 +148,29 @@ class Misc(commands.Cog):
                             new_roles_below: discord.Role,
                             rename_scheme_old_roles: str = "{name} (ws22/23)",
                             ):
+    @app_commands.command(name="rename_roles",
+                          description="Rename roles with scheme ({name} and {to_add}) "
+                                      "limits and roles containing scheme will not be edited.")
+    @app_commands.guild_only
+    async def rename_roles_bulk(self,
+                                interaction: discord.Interaction,
+                                lower_role: discord.Role,
+                                upper_role: discord.Role,
+                                to_add: str,
+                                rename_scheme: str = "{name} {to_add}"):
 
-        guild = interaction.guild
+        scheme = rename_scheme.replace("{to_add}", to_add)
 
+        await interaction.response.send_message(
+            f"Renaming channels with scheme: '{scheme}'",
+            ephemeral=True)
+        # refresh roles, because it bugged once, this will fix it hopefully
+        await interaction.guild.fetch_roles()
+        for role in interaction.guild.roles:
+            if (lower_role < role < upper_role) and to_add not in role.name:
+                await role.edit(name=scheme.replace("{name}", role.name))
+
+        await interaction.followup.send("Done")
         role_position_below = new_roles_below.position
         old_channels: list[discord.TextChannel] = source_category.channels
         for i, old_channel in enumerate(source_category.channels):
