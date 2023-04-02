@@ -107,11 +107,21 @@ class Misc(commands.Cog):
     async def my_task(self):
         pass
 
-    def get_channel_role(self, old_channel: discord.TextChannel, target_category: discord.CategoryChannel):
+    # not used atm
+    def get_channel_role(self, old_channel: discord.TextChannel,
+                         target_category: discord.CategoryChannel) -> Optional[discord.Role]:
+        """
+        Assuming that the role in question is the only role in that channel that has permissions
+        beside the roles that are in the category defined
+        :returns: Role if it can be clearly determined
+        """
         base_overwrites_set = set(target_category.overwrites.keys())
         overwritten_roles_set = set(old_channel.overwrites.keys())
 
         only_in_this_channel: set[discord.Role] = overwritten_roles_set.difference(base_overwrites_set)
+        if len(only_in_this_channel) != 1:
+            return None
+
         channel_role = only_in_this_channel.pop()
         return channel_role
 
