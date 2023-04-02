@@ -125,6 +125,20 @@ class Misc(commands.Cog):
         channel_role = only_in_this_channel.pop()
         return channel_role
 
+    async def clone_role(self, role: discord.Role, position_in_hierarchy, name="") -> discord.Role:
+        """ Create an exact copy of a role positioned at a specific position in hierarchy (optional with other name) """
+        role = await role.guild.create_role(
+            name=name or role.name,
+            permissions=role.permissions,
+            colour=role.colour,
+            hoist=role.hoist,
+            display_icon=role.display_icon,
+            mentionable=role.mentionable,
+            reason="Clone command",
+        )
+        await role.edit(position=position_in_hierarchy)
+
+        return role
 
     @app_commands.checks.has_permissions(administrator=True)
     async def clone_category_with_new_roles(self,
