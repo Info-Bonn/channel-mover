@@ -141,13 +141,6 @@ class Misc(commands.Cog):
         return role
 
     @app_commands.checks.has_permissions(administrator=True)
-    async def clone_category_with_new_roles(self,
-                            interaction: discord.Interaction,
-                            source_category: discord.CategoryChannel,
-                            destination: discord.CategoryChannel,
-                            new_roles_below: discord.Role,
-                            rename_scheme_old_roles: str = "{name} (ws22/23)",
-                            ):
     @app_commands.command(name="rename_roles",
                           description="Rename roles with scheme ({name} and {to_add}) "
                                       "limits and roles containing scheme will not be edited.")
@@ -171,15 +164,75 @@ class Misc(commands.Cog):
                 await role.edit(name=scheme.replace("{name}", role.name))
 
         await interaction.followup.send("Done")
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="clone_category_with_new_roles",
+                          description="Cloning the module channels. Prototype Channel/role represent "
+                                      "how the permissions shall be modeled")
+    @app_commands.guild_only
+    async def clone_category_with_new_roles(self,
+                                            interaction: discord.Interaction,
+                                            source_category: discord.CategoryChannel,
+                                            old_module_selection_channel: discord.TextChannel,
+                                            prototype_channel: discord.TextChannel,
+                                            prototype_role: discord.Role,
+                                            destination_category: discord.CategoryChannel,
+                                            new_roles_below: discord.Role,
+                                            ):
+
+        # only simplify access
         role_position_below = new_roles_below.position
         old_channels: list[discord.TextChannel] = source_category.channels
-        for i, old_channel in enumerate(source_category.channels):
-            new_role = guild.create_role(name=)
-            new_channel = guild.create_text_channel(old_channel.name,
-                                                    reason="Clone command",
-                                                    overwrites=old_channel.,
-                                                    category=destination,
-                                                    )
+
+        # respond so interaction doesn't time out
+        await interaction.response.send_message(
+            f"trying to clone {len(old_channels)} and roles from '{source_category.name}' to '{source_category.name}'",
+            ephemeral=True)
+
+        guild = interaction.guild
+
+        log: list[str] = []  # log errors
+        # get permissions that the module role shall have
+        prototype_role_overwrites = prototype_channel.overwrites_for(prototype_role)
+
+        created_role_channel_pairs: list[tuple[discord.Role, discord.TextChannel]] = []
+
+        for old_channel in source_category.channels:
+            # ignore selection channel
+            if old_channel.id == old_module_selection_channel.id:
+                continue
+
+            # create new role with same base permission set at target position in hierarchy
+            new_channel_role = await self.clone_role(prototype_role,
+                                                     name=old_channel.name,
+                                                     position_in_hierarchy=role_position_below)
+
+            # configure overwrite for new channel
+            dest_cat_overwrites = destination_category.overwrites
+            dest_cat_overwrites[new_channel_role] = prototype_role_overwrites
+
+            # create new channel
+            new_channel = await guild.create_text_channel(old_channel.name,
+                                                          reason="Clone command",
+                                                          category=destination_category,
+                                                          overwrites=dest_cat_overwrites
+                                                          )
+
+            created_role_channel_pairs.append((new_channel_role, new_channel))
+
+        # write log output
+        log_msg = f"Incidents:\n" + "\n".join(log) if len(log) > 0 else "No incidents during creation reported"
+        await interaction.followup.send(log_msg)
+
+        # report role 'map' containing channel, role, role_id
+        joined = "\n\n".join(
+            f"{channel.mention} {role.mention} - {role.id}" for role, channel in created_role_channel_pairs)
+        await interaction.followup.send(joined)
+
+        # format for reaction role bot
+        await interaction.followup.send(
+            "Roles: `" + " ".join([f"<@&{role.id}>" for role, channel in created_role_channel_pairs]) + "`")
+
 
 async def setup(bot):
     await bot.add_cog(Misc(bot))
