@@ -107,5 +107,35 @@ class Misc(commands.Cog):
     async def my_task(self):
         pass
 
+    def get_channel_role(self, old_channel: discord.TextChannel, target_category: discord.CategoryChannel):
+        base_overwrites_set = set(target_category.overwrites.keys())
+        overwritten_roles_set = set(old_channel.overwrites.keys())
+
+        only_in_this_channel: set[discord.Role] = overwritten_roles_set.difference(base_overwrites_set)
+        channel_role = only_in_this_channel.pop()
+        return channel_role
+
+
+    @app_commands.checks.has_permissions(administrator=True)
+    async def clone_category_with_new_roles(self,
+                            interaction: discord.Interaction,
+                            source_category: discord.CategoryChannel,
+                            destination: discord.CategoryChannel,
+                            new_roles_below: discord.Role,
+                            rename_scheme_old_roles: str = "{name} (ws22/23)",
+                            ):
+
+        guild = interaction.guild
+
+        role_position_below = new_roles_below.position
+        old_channels: list[discord.TextChannel] = source_category.channels
+        for i, old_channel in enumerate(source_category.channels):
+            new_role = guild.create_role(name=)
+            new_channel = guild.create_text_channel(old_channel.name,
+                                                    reason="Clone command",
+                                                    overwrites=old_channel.,
+                                                    category=destination,
+                                                    )
+
 async def setup(bot):
     await bot.add_cog(Misc(bot))
