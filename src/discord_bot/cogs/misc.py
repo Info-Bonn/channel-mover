@@ -81,18 +81,40 @@ class Misc(commands.Cog):
                             interaction: discord.Interaction,
                             category_to_move_from: discord.CategoryChannel,
                             destination: discord.CategoryChannel,
-                            sync_perms: bool = True
+                            sync_perms_to_new_category: bool = True,
+                            preserve_disable_channel_role: bool = True,
                             ):
 
         resp: discord.InteractionResponse = interaction.response
         await resp.defer(ephemeral=True, thinking=True)
 
         for channel in category_to_move_from.channels:
-            await channel.move(category=destination, sync_permissions=sync_perms,
-                               reason=f"Interaction with {interaction.user.mention} issued that", end=True)
+
+            logger.info(f"Editing channel {channel.name}...")
+
+            # get base perms
+            if sync_perms_to_new_category:
+                new_perms = destination.overwrites
+            else:
+                new_perms = channel.overwrites
+
+            # re-add module channel role if wanted, but with no perms
+            # this is helpful to create a new set of channels for the next semester with the same role names
+            if preserve_disable_channel_role:
+                channel_role = self.get_channel_role(channel, category_to_move_from)
+                # setup new overwrite that disallows everything
+                channel_perms = discord.PermissionOverwrite.from_pair(discord.Permissions(), discord.Permissions.none())
+                # add to global overwrite
+                new_perms[channel_role] = channel_perms
+
+            await channel.edit(category=destination, overwrites=new_perms,
+                               reason=f"Interaction with {interaction.user.mention} issued that",)
+
+            logger.info(f"Done editing {channel.name}")
             time.sleep(1)  # please the goods of rate-limit
 
         followup: discord.Webhook = interaction.followup
+        logger.info(f"Done with the whole move process")
         await followup.send("Done :)", ephemeral=True)
 
     # Example for an event listener
