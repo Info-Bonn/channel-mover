@@ -137,11 +137,13 @@ class Misc(commands.Cog):
         beside the roles that are in the category defined
         :returns: Role if it can be clearly determined
         """
-        base_overwrites_set = set(target_category.overwrites.keys())
-        overwritten_roles_set = set(old_channel.overwrites.keys())
+        # do comprehension to filter only for role-overwrites
+        base_overwrites_set = set(ov for ov in target_category.overwrites.keys() if type(ov) == discord.Role)
+        overwritten_roles_set = set(ov for ov in old_channel.overwrites.keys() if type(ov) == discord.Role)
 
         only_in_this_channel: set[discord.Role] = overwritten_roles_set.difference(base_overwrites_set)
         if len(only_in_this_channel) != 1:
+            logger.warning(f"Can't determine channel role, more than one candidate: {only_in_this_channel=}")
             return None
 
         channel_role = only_in_this_channel.pop()
