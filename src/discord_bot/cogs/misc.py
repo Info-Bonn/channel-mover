@@ -81,18 +81,40 @@ class Misc(commands.Cog):
                             interaction: discord.Interaction,
                             category_to_move_from: discord.CategoryChannel,
                             destination: discord.CategoryChannel,
-                            sync_perms: bool = True
+                            sync_perms_to_new_category: bool = True,
+                            preserve_disable_channel_role: bool = True,
                             ):
 
         resp: discord.InteractionResponse = interaction.response
         await resp.defer(ephemeral=True, thinking=True)
 
         for channel in category_to_move_from.channels:
-            await channel.move(category=destination, sync_permissions=sync_perms,
-                               reason=f"Interaction with {interaction.user.mention} issued that", end=True)
+
+            logger.info(f"Editing channel {channel.name}...")
+
+            # get base perms
+            if sync_perms_to_new_category:
+                new_perms = destination.overwrites
+            else:
+                new_perms = channel.overwrites
+
+            # re-add module channel role if wanted, but with no perms
+            # this is helpful to create a new set of channels for the next semester with the same role names
+            if preserve_disable_channel_role:
+                channel_role = self.get_channel_role(channel, category_to_move_from)
+                # setup new overwrite that disallows everything
+                channel_perms = discord.PermissionOverwrite.from_pair(discord.Permissions(), discord.Permissions.none())
+                # add to global overwrite
+                new_perms[channel_role] = channel_perms
+
+            await channel.edit(category=destination, overwrites=new_perms,
+                               reason=f"Interaction with {interaction.user.mention} issued that",)
+
+            logger.info(f"Done editing {channel.name}")
             time.sleep(1)  # please the goods of rate-limit
 
         followup: discord.Webhook = interaction.followup
+        logger.info(f"Done with the whole move process")
         await followup.send("Done :)", ephemeral=True)
 
     # Example for an event listener
@@ -115,11 +137,13 @@ class Misc(commands.Cog):
         beside the roles that are in the category defined
         :returns: Role if it can be clearly determined
         """
-        base_overwrites_set = set(target_category.overwrites.keys())
-        overwritten_roles_set = set(old_channel.overwrites.keys())
+        # do comprehension to filter only for role-overwrites
+        base_overwrites_set = set(ov for ov in target_category.overwrites.keys() if type(ov) == discord.Role)
+        overwritten_roles_set = set(ov for ov in old_channel.overwrites.keys() if type(ov) == discord.Role)
 
         only_in_this_channel: set[discord.Role] = overwritten_roles_set.difference(base_overwrites_set)
         if len(only_in_this_channel) != 1:
+            logger.warning(f"Can't determine channel role, more than one candidate: {only_in_this_channel=}")
             return None
 
         channel_role = only_in_this_channel.pop()
@@ -143,7 +167,7 @@ class Misc(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="rename_roles",
                           description="Rename roles with scheme ({name} and {to_add}) "
-                                      "limits and roles containing scheme will not be edited.")
+                                      "limits, roles containing scheme are not edited.")
     @app_commands.guild_only
     async def rename_roles_bulk(self,
                                 interaction: discord.Interaction,
@@ -167,8 +191,8 @@ class Misc(commands.Cog):
 
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="clone_category_with_new_roles",
-                          description="Cloning the module channels. Prototype Channel/role represent "
-                                      "how the permissions shall be modeled")
+                          description="Clone module channels. Prototype Channel/role represent "
+                                      "how the permissions are modeled, using category as base.")
     @app_commands.guild_only
     async def clone_category_with_new_roles(self,
                                             interaction: discord.Interaction,
@@ -180,6 +204,7 @@ class Misc(commands.Cog):
                                             new_roles_below: discord.Role,
                                             ):
 
+        # TODO: this starts one role too low, maybe because everyone is role 0?
         # only simplify access
         role_position_below = new_roles_below.position
         old_channels: list[discord.TextChannel] = source_category.channels
@@ -202,12 +227,15 @@ class Misc(commands.Cog):
             if old_channel.id == old_module_selection_channel.id:
                 continue
 
+            # TODO: this messes HARD with the role order even tough the position should be clear
+            #  I suggest saving the previous layout and doing a sanity / cleanup check afterwards.
             # create new role with same base permission set at target position in hierarchy
             new_channel_role = await self.clone_role(prototype_role,
                                                      name=old_channel.name,
                                                      position_in_hierarchy=role_position_below)
 
             # configure overwrite for new channel
+            # TODO: note to the user: make sure that the category doesn't allow unwanted roles like 'member'!
             dest_cat_overwrites = destination_category.overwrites
             dest_cat_overwrites[new_channel_role] = prototype_role_overwrites
 
@@ -229,9 +257,11 @@ class Misc(commands.Cog):
             f"{channel.mention} {role.mention} - {role.id}" for role, channel in created_role_channel_pairs)
         await interaction.followup.send(joined)
 
-        # format for reaction role bot
-        await interaction.followup.send(
-            "Roles: `" + " ".join([f"<@&{role.id}>" for role, channel in created_role_channel_pairs]) + "`")
+        # format for reaction role bots command
+        rr_format = "Roles: `" + " ".join([f"<@&{role.id}>" for role, channel in created_role_channel_pairs]) + "`"
+        await interaction.followup.send(rr_format)
+
+        print(rr_format)
 
 
 async def setup(bot):
