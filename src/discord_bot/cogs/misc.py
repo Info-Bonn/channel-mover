@@ -191,8 +191,8 @@ class Misc(commands.Cog):
 
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="clone_category_with_new_roles",
-                          description="Cloning the module channels. Prototype Channel/role represent "
-                                      "how the permissions shall be modeled")
+                          description="Clone module channels. Prototype Channel/role represent "
+                                      "how the permissions are modeled, using category as base.")
     @app_commands.guild_only
     async def clone_category_with_new_roles(self,
                                             interaction: discord.Interaction,
@@ -204,6 +204,7 @@ class Misc(commands.Cog):
                                             new_roles_below: discord.Role,
                                             ):
 
+        # TODO: this starts one role too low, maybe because everyone is role 0?
         # only simplify access
         role_position_below = new_roles_below.position
         old_channels: list[discord.TextChannel] = source_category.channels
@@ -226,12 +227,15 @@ class Misc(commands.Cog):
             if old_channel.id == old_module_selection_channel.id:
                 continue
 
+            # TODO: this messes HARD with the role order even tough the position should be clear
+            #  I suggest saving the previous layout and doing a sanity / cleanup check afterwards.
             # create new role with same base permission set at target position in hierarchy
             new_channel_role = await self.clone_role(prototype_role,
                                                      name=old_channel.name,
                                                      position_in_hierarchy=role_position_below)
 
             # configure overwrite for new channel
+            # TODO: note to the user: make sure that the category doesn't allow unwanted roles like 'member'!
             dest_cat_overwrites = destination_category.overwrites
             dest_cat_overwrites[new_channel_role] = prototype_role_overwrites
 
