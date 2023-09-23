@@ -253,9 +253,11 @@ class Misc(commands.Cog):
             f"{channel.mention} {role.mention} - {role.id}" for role, channel in created_role_channel_pairs)
         await interaction.followup.send(joined)
 
-        # format for reaction role bot
-        await interaction.followup.send(
-            "Roles: `" + " ".join([f"<@&{role.id}>" for role, channel in created_role_channel_pairs]) + "`")
+        # format for reaction role bots command
+        rr_format = "Roles: `" + " ".join([f"<@&{role.id}>" for role, channel in created_role_channel_pairs]) + "`"
+        await interaction.followup.send(rr_format)
+
+        print(rr_format)
 
 
 async def setup(bot):
