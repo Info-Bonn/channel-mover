@@ -81,9 +81,13 @@ class Misc(commands.Cog):
                             interaction: discord.Interaction,
                             category_to_move_from: discord.CategoryChannel,
                             destination: discord.CategoryChannel,
+                            module_selection_channel: discord.TextChannel = None,
                             sync_perms_to_new_category: bool = True,
                             preserve_disable_channel_role: bool = True,
                             ):
+
+        if module_selection_channel is not None:
+            logger.warning(f"No module selection channel was given. continuing...")
 
         resp: discord.InteractionResponse = interaction.response
         await resp.defer(ephemeral=True, thinking=True)
@@ -100,7 +104,8 @@ class Misc(commands.Cog):
 
             # re-add module channel role if wanted, but with no perms
             # this is helpful to create a new set of channels for the next semester with the same role names
-            if preserve_disable_channel_role:
+            # also exclude the channel where modules are chosen, this one has no channel role
+            if preserve_disable_channel_role and channel != module_selection_channel:
                 channel_role = self.get_channel_role(channel, category_to_move_from)
                 # setup new overwrite that disallows everything
                 channel_perms = discord.PermissionOverwrite.from_pair(discord.Permissions(), discord.Permissions.none())
