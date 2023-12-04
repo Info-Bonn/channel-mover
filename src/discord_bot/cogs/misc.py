@@ -196,8 +196,8 @@ class Misc(commands.Cog):
 
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="clone_category_with_new_roles",
-                          description="Clone module channels. Prototype Channel/role represent "
-                                      "how the permissions are modeled, using category as base.")
+                          description="Clone module channels. Prototype Channel/role represent how to model perms, "
+                                      "using category as base.")
     @app_commands.guild_only
     async def clone_category_with_new_roles(self,
                                             interaction: discord.Interaction,
