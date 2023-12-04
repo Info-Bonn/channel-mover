@@ -1,3 +1,4 @@
+import re
 import time
 from typing import Literal, Optional
 
@@ -22,6 +23,12 @@ class Misc(commands.Cog):
 
     def __init__(self, bot):
         self.bot: commands.Bot = bot
+
+        self.ctx_replacement = app_commands.ContextMenu(
+            name='add_tutor_annotations',
+            callback=self.add_tutor_annotations,
+        )
+        self.bot.tree.add_command(self.ctx_replacement)
 
     # a chat based command
     @commands.command(name='ping', help="Check if Bot available")
@@ -267,6 +274,106 @@ class Misc(commands.Cog):
         await interaction.followup.send(rr_format)
 
         print(rr_format)
+
+
+    async def add_tutor_annotations(self,
+                                    interaction: discord.Interaction,
+                                    message: discord.Message
+                                    ):
+        """
+        parses a message of the format:
+        #module-channel-1
+        @module-tutor-1
+        @tutor-2
+
+        #module-channel-n
+        @module-tutor-n
+        @module-tutor-n+1
+
+        ...and sends the list of these tutors (as mentions) in the above-mentioned channel (pinning included)
+
+        """
+
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Only admins can do that. Sorry.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
+
+
+        res_dict = await self.parse_message(message)
+
+        # TODO: maybe move this to config?
+        tutor_header = "Tutor:innen (evtl. unvollständig):\n"
+        tutors: list[discord.Member]
+        for channel, tutors in res_dict.items():
+
+            logger.info(f"Creating message for: {channel.name}, num of tutors: {len(tutors)}")
+            # mention the tutor manually - this accounts for members that might have left and would resolve to None.
+            # we encode the true id in a "faulty" ping. that preserves the raw data and discord handles the
+            # display as 'unknown'
+            tutor_names = "\n".join(f"<@{tutor}>" for tutor in tutors)
+            tutor_msg = tutor_header + tutor_names
+            logger.debug(tutor_msg)
+            msg = await channel.send(tutor_msg)
+            await msg.pin()
+
+        await interaction.followup.send("Done.")
+
+
+    # This method was scratched with GPT4 and heavily modified by myself (honestly would have been faster on my own)
+    # parsing just ins't beautiful, but it came out better than I first envisioned
+    async def parse_message(self, message: discord.Message) -> dict[
+        discord.TextChannel, list[int]]:
+        """
+        Parse a discord message and build a dictionary of channels to members.
+
+        Args:
+            message (discord.Message): The discord message to parse.
+
+        Returns:
+            dict[discord.TextChannel, list[int]: A dictionary where each key is a discord channel,
+            and each value is a list of member-ids mentioned under that channel in the message.
+        """
+        guild = message.guild
+
+        parsed_dict = {}
+        lines = message.content.split('\n')
+        current_channel = None
+
+        for line in lines:
+            # Ignore lines that have more than one mention or no mentions at all
+            matches = re.findall(r'\d+', line)
+            if len(matches) != 1:
+                continue
+
+            # found a valid line: either a channel- or a member-id
+            elm_id = matches[0]
+
+            # Check which type of mention it is
+            # (mention must be at the start of the line, otherwise we ignore it)
+
+            # Check if the line contains a channel mention
+            if line.startswith('<#'):
+                # Extract the channel ID from the mention
+                current_channel = await guild.fetch_channel(elm_id)  # Get the channel object
+
+                if current_channel is None:
+                    logger.warning(f"Can't resolve channel id {elm_id} - continuing without adding that channel.")
+                    continue
+
+                parsed_dict[current_channel] = []  # Initialize the member list for this channel
+
+            # Check if the line contains a user mention (prevent role mentions)
+            elif line.startswith('<@') and not line.startswith("<@&"):
+                if current_channel is None:
+                    logger.warning(f"Current-channel is None, can't add member {elm_id} to dict. Continuing...")
+                    continue
+
+                # add member id
+                parsed_dict[current_channel].append(elm_id)
+
+        return parsed_dict
 
 
 async def setup(bot):
