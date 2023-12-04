@@ -1,7 +1,11 @@
 # Channel Mover
-Untilities to move, rename and create a lot of channels at once, following various schemes.
+Utilities to move, rename and create a lot of channels at once, following various schemes and more useful stuff.  
+The code is documented but usage and required schemes aren't.  
+It's just a collection of \*very specific\* commands that make maintaining our server a lot easier and are only needed twice a year.  
+The structuring of functionality into dedicated modules is also optional at this point.  
+You can find all of the actual functionality in `src/discord_bot/cogs/misc.py` (:
 
-## Setup
+## Setup (if you really feel like this bot is any good for you)
 
 ###### Setup a [venv](https://docs.python.org/3/library/venv.html) (optional, but recommend)
 `python3 -m venv venv`   
