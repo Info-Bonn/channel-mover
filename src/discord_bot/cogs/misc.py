@@ -28,7 +28,14 @@ class Misc(commands.Cog):
             name='add_tutor_annotations',
             callback=self.add_tutor_annotations,
         )
+
+        self.ctx_revert_channels = app_commands.ContextMenu(
+            name='revert_channel_creation',
+            callback=self.ctx_revert_channel_creation,
+        )
         self.bot.tree.add_command(self.ctx_tutor_message)
+        self.bot.tree.add_command(self.ctx_revert_channels)
+
 
     # a chat based command
     @commands.command(name='ping', help="Check if Bot available")
@@ -275,6 +282,37 @@ class Misc(commands.Cog):
 
         print(rr_format)
 
+    async def ctx_revert_channel_creation(self,
+                                    interaction: discord.Interaction,
+                                    message: discord.Message
+                                    ):
+        """ Revert everything that was done with /clone_category_with_new_roles, works only on the output message of that command """
+        async def iter_delete(to_iter: list[int], get_function):
+            for mention in to_iter:
+                try:
+                    obj = get_function(mention)
+                    await obj.delete(reason="revert")
+                    logger.info(f"Deleted {obj.name}")
+                except Exception as e:
+                    logger.warning(f"Couldn't delete thing with id='{mention}', reason: {e}")
+
+        resp: discord.InteractionResponse = interaction.response
+        await resp.defer(ephemeral=True, thinking=True)
+        followup: discord.Webhook = interaction.followup
+
+
+        role_mentions = message.raw_role_mentions
+        channel_mentions = message.raw_channel_mentions
+
+        await iter_delete(role_mentions, interaction.guild.get_role)
+        logger.info(f"Done with the roles")
+        await followup.send("Done with the roles", ephemeral=True)
+        await iter_delete(channel_mentions, interaction.guild.get_channel)
+        logger.info(f"Done with the channels")
+        await followup.send("Done with the channels", ephemeral=True)
+
+        logger.info(f"Done with the whole remove process")
+        await followup.send("Done. Good luck next time! :)", ephemeral=True)
 
     async def add_tutor_annotations(self,
                                     interaction: discord.Interaction,
