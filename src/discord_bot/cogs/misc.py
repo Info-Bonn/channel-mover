@@ -24,11 +24,11 @@ class Misc(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
 
-        self.ctx_replacement = app_commands.ContextMenu(
+        self.ctx_tutor_message = app_commands.ContextMenu(
             name='add_tutor_annotations',
             callback=self.add_tutor_annotations,
         )
-        self.bot.tree.add_command(self.ctx_replacement)
+        self.bot.tree.add_command(self.ctx_tutor_message)
 
     # a chat based command
     @commands.command(name='ping', help="Check if Bot available")
