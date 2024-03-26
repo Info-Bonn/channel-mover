@@ -192,8 +192,8 @@ class Misc(commands.Cog):
 
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="rename_roles",
-                          description="Rename roles with scheme ({name} and {to_add}) "
-                                      "limits, roles containing scheme are not edited.")
+                          description="Rename roles with scheme ({name} and {to_add}), "
+                                      "roles containing scheme and limits are not edited.")
     @app_commands.guild_only
     async def rename_roles_bulk(self,
                                 interaction: discord.Interaction,
