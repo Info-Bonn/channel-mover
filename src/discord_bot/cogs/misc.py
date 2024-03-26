@@ -79,12 +79,19 @@ class Misc(commands.Cog):
     async def copy_category(self,
                             interaction: discord.Interaction,
                             source: discord.CategoryChannel,
-                            destination_name: str
+                            destination_name: str,
+                            position: Literal["top", "bottom", "below_source"] = "top"
                             ):
+
+        pos_dict = {
+            "top": 0,  # TODO: why is 0 only second highest but -1 doesn't work? :shrug:
+            "bottom": len(interaction.guild.channels),
+            "below_source": source.position
+        }
         await interaction.guild.create_category(destination_name,
                                                 overwrites=source.overwrites,
                                                 reason="cp command",
-                                                position=source.position)
+                                                position=pos_dict[position])
 
         await interaction.response.send_message("Copied.", ephemeral=True)
 
