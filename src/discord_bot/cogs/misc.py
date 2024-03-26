@@ -255,6 +255,7 @@ class Misc(commands.Cog):
 
             # TODO: this messes HARD with the role order even tough the position should be clear
             #  I suggest saving the previous layout and doing a sanity / cleanup check afterwards.
+            #  maybe we should do a snapshot before to at least reorder the rest relative to each other?
             # create new role with same base permission set at target position in hierarchy
             new_channel_role = await self.clone_role(prototype_role,
                                                      name=old_channel.name,
@@ -274,6 +275,8 @@ class Misc(commands.Cog):
 
             created_role_channel_pairs.append((new_channel_role, new_channel))
 
+        # TODO: we've got all the roles - should we fetch their positions and reorder until they've got the right spots?
+        #  but this will cost an insane amount of api calls...
         # write log output
         log_msg = f"Incidents:\n" + "\n".join(log) if len(log) > 0 else "No incidents during creation reported"
         await interaction.followup.send(log_msg)
