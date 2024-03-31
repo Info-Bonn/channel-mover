@@ -40,6 +40,8 @@ class Misc(commands.Cog):
         self.bot.tree.add_command(self.ctx_tutor_message)
         self.bot.tree.add_command(self.ctx_revert_channels)
 
+        self.repl_state = {}
+
     @staticmethod
     def find_latest_backup_file(guild: discord.Guild, dir_path="data/"):
         list_of_files = glob.glob(f"{dir_path}NAME_BACKUP_{guild.id}_*.csv")  # get list of all csv files
@@ -88,6 +90,25 @@ class Misc(commands.Cog):
             return res
         return self.replacement_case_max_len(name[:-1], max_len=max_len)
 
+    def acquire_replacement_case_for_guild(self, guild: discord.Guild):
+        state = self.repl_state.get(guild.id)
+        if state is None or state is False:
+            logger.info(f"acquired {guild.name=} {guild.id=}")
+            self.repl_state[guild.id] = True
+            return True
+
+        logger.warning(f"Tried to lock for guild {guild.id} but it's locked")
+        return False
+
+    def free_replacement_case_for_guild(self, guild: discord.Guild):
+        state = self.repl_state.get(guild.id)
+        if state is True:
+            self.repl_state[guild.id] = False
+            logger.info(f"freed {guild.name=} {guild.id=}")
+        else:
+            logger.warning(f"Tried to free lock for {guild.id} but it wasn't locked")
+
+
     @commands.has_permissions(administrator=True)
     @commands.command("backup")
     async def backup(self, ctx: commands.Context):
@@ -96,8 +117,14 @@ class Misc(commands.Cog):
         await ctx.send(f"Done: '{file}")
 
     @commands.has_permissions(administrator=True)
-    @commands.command("replace_all")
+    @commands.command("replace_all", aliases=['EAEA__r_PL_C__LL'])
     async def replacement_case_all(self, ctx: commands.Context):
+
+        lock_success = self.acquire_replacement_case_for_guild(ctx.guild)
+        if not lock_success:
+            await ctx.send(f"some process in progress, can't do that now")
+            return
+
         await ctx.send(content=f"Your choice - there is no going back :)")
         members = ctx.guild.members
         self.make_name_backup(ctx.guild)
@@ -118,15 +145,23 @@ class Misc(commands.Cog):
                 logger.info(f"Status: {cnt} / {ctx.guild.member_count}")
 
             if cnt % 100 == 0:
-                await ctx.send(content=f"Status: {cnt} / {ctx.guild.member_count}")
+                await ctx.send(content=f"AU__sT_T_S: {cnt} / {ctx.guild.member_count}")
 
         logger.info(f"Done for guild: {ctx.guild}, {errs=}")
-        await ctx.send(content=f"Done :) with {errs=}")
+        await ctx.send(embed=ut.make_embed(title=self.replacement_case_max_len('Done'), value=f"{EAEEAE__r_PL_C_M_NTc_S_('Have a nice day', eAE___SC_P_=True)} :)"))
+        await ctx.send(content=f"with {errs=}")
+
+        self.free_replacement_case_for_guild(ctx.guild)
 
 
     @commands.has_permissions(administrator=True)
     @commands.command("rollback")
     async def roll_back_replacement_case(self, ctx: commands.Context):
+        lock_success = self.acquire_replacement_case_for_guild(ctx.guild)
+        if not lock_success:
+            await ctx.send(f"some process in progress, can't do that now")
+            return
+
         await ctx.send(content=f"Starting rollback")
         logger.info(f"Rolling back for guild: {ctx.guild.name}")
         to_roll_back = self.get_member_backup(ctx.guild)
@@ -149,6 +184,8 @@ class Misc(commands.Cog):
 
         logger.info(f"Done for guild: {ctx.guild}, {errs=}")
         await ctx.send(content=f"Done :), {errs=}")
+
+        self.free_replacement_case_for_guild(ctx.guild)
 
 
     # a chat based command
