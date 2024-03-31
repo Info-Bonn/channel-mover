@@ -1,12 +1,16 @@
+import glob
+import os
 import re
 import time
 from typing import Literal, Optional
 
 import discord
+import discord.errors as d_errs
 from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
 
+from ..lib.OEE__c_NV_RT_RS import EAEEAE__r_PL_C_M_NTc_S_
 from ..log_setup import logger
 from ..utils import utils as ut
 
@@ -35,6 +39,116 @@ class Misc(commands.Cog):
         )
         self.bot.tree.add_command(self.ctx_tutor_message)
         self.bot.tree.add_command(self.ctx_revert_channels)
+
+    @staticmethod
+    def find_latest_backup_file(guild: discord.Guild, dir_path="data/"):
+        list_of_files = glob.glob(f"{dir_path}NAME_BACKUP_{guild.id}_*.csv")  # get list of all csv files
+        if not list_of_files:  # if list is empty, return None
+            return None
+        latest_file = max(list_of_files, key=os.path.getmtime)  # find latest (most recent) file
+        return latest_file
+
+    @staticmethod
+    def make_name_backup(guild: discord.Guild) -> str:
+        backup_file = f"data/NAME_BACKUP_{guild.id}_{time.time()}.csv"
+        backup_str = "member_id\,member_display_name\,member_name\n"
+        backup_str += "\n".join(f"{m.id}\,{m.display_name}\,{m.name}" for m in guild.members)
+
+        with open(backup_file, "w") as f:
+            f.write(backup_str)
+
+        logger.info(f"Written backup to: '{backup_file}'")
+        return backup_file
+
+    def get_member_backup(self, guild: discord.Guild) -> list[tuple[discord.Member, str]]:
+        file = self.find_latest_backup_file(guild)
+        logger.info(f"Reading file '{file}'")
+        with open(file, "r") as f:
+            lines = f.readlines()[1:]
+
+        members = []
+        errs = 0
+        for line in lines:
+            m_id, disp_name, m_name = line.split("\,")
+            m_id = int(m_id)
+            member = guild.get_member(m_id)
+            if member is None:
+                logger.warning(f"CANT RESOLVE id={m_id}, disp_name={disp_name}, member_name={m_name}")
+                errs += 1
+                continue
+            members.append((member, disp_name))
+
+        logger.info(f"Finished loading members with {errs} errors")
+
+        return members
+
+    def replacement_case_max_len(self, name: str, max_len=32):
+        res = EAEEAE__r_PL_C_M_NTc_S_(name)
+        if len(res) <= max_len:
+            return res
+        return self.replacement_case_max_len(name[:-1], max_len=max_len)
+
+    @commands.has_permissions(administrator=True)
+    @commands.command("backup")
+    async def backup(self, ctx: commands.Context):
+        members = ctx.guild.members
+        file = self.make_name_backup(ctx.guild)
+        await ctx.send(f"Done: '{file}")
+
+    @commands.has_permissions(administrator=True)
+    @commands.command("replace_all")
+    async def replacement_case_all(self, ctx: commands.Context):
+        await ctx.send(content=f"Your choice - there is no going back :)")
+        members = ctx.guild.members
+        self.make_name_backup(ctx.guild)
+
+        cnt = 0
+        errs = 0
+        for member in members:
+            disp_in_replacement_case = self.replacement_case_max_len(member.display_name)
+
+            # logger.info(f"{member}")
+            try:
+                await member.edit(nick=disp_in_replacement_case)
+            except d_errs.Forbidden:
+                logger.warning(f"can't edit {member.display_name}, {member.id}")
+                errs += 1
+            cnt += 1
+            if cnt % 20 == 0:
+                logger.info(f"Status: {cnt} / {ctx.guild.member_count}")
+
+            if cnt % 100 == 0:
+                await ctx.send(content=f"Status: {cnt} / {ctx.guild.member_count}")
+
+        logger.info(f"Done for guild: {ctx.guild}, {errs=}")
+        await ctx.send(content=f"Done :) with {errs=}")
+
+
+    @commands.has_permissions(administrator=True)
+    @commands.command("rollback")
+    async def roll_back_replacement_case(self, ctx: commands.Context):
+        await ctx.send(content=f"Starting rollback")
+        logger.info(f"Rolling back for guild: {ctx.guild.name}")
+        to_roll_back = self.get_member_backup(ctx.guild)
+
+        cnt = 0
+        errs = 0
+        for m, nick in to_roll_back:
+            try:
+                await m.edit(nick=nick)
+            except d_errs.Forbidden:
+                logger.warning(f"can't edit {m.display_name}, {m.id}")
+                errs += 1
+
+            cnt += 1
+            if cnt % 20 == 0:
+                logger.info(f"Status: {cnt} / {ctx.guild.member_count}")
+
+            if cnt % 100 == 0:
+                await ctx.send(content=f"Status: {cnt} / {ctx.guild.member_count}")
+
+        logger.info(f"Done for guild: {ctx.guild}, {errs=}")
+        await ctx.send(content=f"Done :), {errs=}")
 
 
     # a chat based command
