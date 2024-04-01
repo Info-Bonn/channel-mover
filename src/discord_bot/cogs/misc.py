@@ -136,6 +136,8 @@ class Misc(commands.Cog):
 
             # logger.info(f"{member}")
             try:
+                # TODO: maybe save persitents who was already changed?
+                #  so if we interrupt we can skip these people and don't 'screw' their name up xd
                 await member.edit(nick=disp_in_replacement_case)
             except d_errs.Forbidden:
                 logger.warning(f"can't edit {member.display_name}, {member.id}")
