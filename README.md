@@ -81,6 +81,7 @@ _If a variable is set using env and json **the environment-variable replaces the
 * Create a webhook (or redirect an existing one)
 * Go to https://discohook.org (note: the send button is currently broken in firefox but it works in chrome)
 * Recreate the old message (I recommend using their bot's context function to get the old content back)
+* Check that the general information texts are correct
 * Ensure that all modules are actually offered
 * Add new modules
   * Make sure that there are not more than 20 modules per message or you'll get problems when adding the reactions due to discords arbitrary limitations
