@@ -92,6 +92,32 @@ _If a variable is set using env and json **the environment-variable replaces the
 * Create a thread below the messages asking for any addition
 * Open the channel to everyone, make sure to not allow new reactions and messages
 
+### archiving an old semester
+#### moving and archiving the channels
+* Create a new category that will become the archive
+  * Hide it from `@everyone` and add your `view archive` role to it with the permissions `read` and `read history`
+  * I recommend to explicitly disable all other text permissions for both roles just to be safe
+* Use `/mv` to move all channels from the old module channel category to the new archive
+  * Enter the rose selection channel as `module_selection_channel` (this is required since it's an exception permission-wise (it doesn't have a module-role))
+  * Double check that target and source are set correctly!
+  * Note: the command breaks if there are more roles with overrides in a channel than only the module-role
+
+#### documenting the tutors
+* create a single message that holds all modules and tutors in the following format:
+```
+#module-channel-1
+@module-tutor-1
+@tutor-2
+
+#module-channel-n
+@module-tutor-n
+@module-tutor-n+1
+```
+* use the context action `add_tutor_annotations` on that message
+  * the bot will parse the message and send the list of tutors in the above-mentioned module channel
+
+* manually remove all tutors that are no longer tutors. I tried automatic it based on a message reaction, but it sucked.
+
 
 ### documentation
 In order to render this documentation, just call `doxygen`
