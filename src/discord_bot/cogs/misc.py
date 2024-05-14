@@ -229,23 +229,6 @@ class Misc(commands.Cog):
 
         await interaction.followup.send("Done", ephemeral=True)
 
-    # 1225816163750252624
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="mv_down")
-    @app_commands.guild_only
-    async def mk_role(self, interaction: discord.Interaction,
-                      r_id: str):
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-        role = interaction.guild.get_role(int(r_id))
-        print(interaction.guild.me.top_role)
-        print(interaction.guild.me.top_role.position)
-
-        await role.edit(position=interaction.guild.me.top_role.position - 1)
-
-        await interaction.followup.send("Done", ephemeral=True)
-
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="clone_category_with_new_roles",
                           description="Clone module channels. Prototype Channel/role represent how to model perms, "
