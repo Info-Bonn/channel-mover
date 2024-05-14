@@ -190,6 +190,8 @@ class Misc(commands.Cog):
 
         return role
 
+    # TODO: iterate over old channels an dget roles from there instead of using an interval
+    #  the role interval might be screwed due to discord not being able to create roles at a fixed position
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="rename_roles",
                           description="Rename roles with scheme ({name} and {to_add}), "
