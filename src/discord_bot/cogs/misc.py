@@ -1,5 +1,7 @@
+import json
 import re
 import time
+from pathlib import Path
 from typing import Literal, Optional
 
 import discord
@@ -439,6 +441,36 @@ class Misc(commands.Cog):
 
         return parsed_dict
 
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="role_backup",
+                          description="Clone module channels. Prototype Channel/role represent how to model perms, "
+                                      "using category as base.")
+    @app_commands.guild_only
+    async def role_backup(self, interaction: discord.Interaction):
+
+        resp: discord.InteractionResponse = interaction.response
+        await resp.defer(ephemeral=True, thinking=True)
+
+        roles = await interaction.guild.fetch_roles()
+
+        statistics = {}
+        for role in roles:
+            role_info = {
+                "role_name": role.name,
+                "count": len(role.members),
+                "members": [m.id for m in role.members],
+                "role_pos": role.position
+            }
+            statistics[role.id] = role_info
+
+        file_name = f"data/role_info_{time.time()}.json"
+        file = Path(file_name)
+        file.touch()
+        text = json.dumps(statistics, indent=4)
+        file.write_text(text)
+        print(file_name)
+
+        await interaction.followup.send(f"Written to: {file.absolute()}", ephemeral=True, file=discord.File(file))
 
 async def setup(bot):
     await bot.add_cog(Misc(bot))
