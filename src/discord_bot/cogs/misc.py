@@ -1,6 +1,7 @@
 import json
 import re
 import time
+import traceback
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -248,9 +249,6 @@ class Misc(commands.Cog):
                                             new_roles_below: discord.Role,
                                             ):
 
-        # TODO: this starts one role too low, maybe because everyone is role 0?
-        # only simplify access
-        role_position_below = new_roles_below.position
         old_channels: list[discord.TextChannel] = source_category.channels
 
         # respond so interaction doesn't time out
@@ -267,6 +265,13 @@ class Misc(commands.Cog):
         created_role_channel_pairs: list[tuple[discord.Role, discord.TextChannel]] = []
 
         for old_channel in source_category.channels:
+            # this might be needed to ensure that roles are placed correctly.
+            # my guess is that the role positioning gets messed up because the roles get new positions,
+            # so we refresh all roles before determining the new position
+            await interaction.guild.fetch_roles()
+            new_roles_below = interaction.guild.get_role(new_roles_below.id)
+            # TODO: this starts one role too low, maybe because everyone is role 0?
+
             # ignore selection channel
             if old_channel.id == old_module_selection_channel.id:
                 continue
@@ -275,9 +280,16 @@ class Misc(commands.Cog):
             #  I suggest saving the previous layout and doing a sanity / cleanup check afterwards.
             #  maybe we should do a snapshot before to at least reorder the rest relative to each other?
             # create new role with same base permission set at target position in hierarchy
-            new_channel_role = await self.clone_role(prototype_role,
-                                                     name=old_channel.name,
-                                                     position_in_hierarchy=role_position_below)
+            try:
+                new_channel_role = await self.clone_role(prototype_role,
+                                                         name=old_channel.name,
+                                                         position_in_hierarchy=new_roles_below.position)
+            except Exception as e:
+                traceback.print_exc()
+                print(f"there was an error - exiting creation")
+                break
+
+            print(f"Created {new_channel_role.id}: {new_channel_role.name}")
 
             # configure overwrite for new channel
             # TODO: note to the user: make sure that the category doesn't allow unwanted roles like 'member'!
@@ -285,11 +297,18 @@ class Misc(commands.Cog):
             dest_cat_overwrites[new_channel_role] = prototype_role_overwrites
 
             # create new channel
-            new_channel = await guild.create_text_channel(old_channel.name,
-                                                          reason="Clone command",
-                                                          category=destination_category,
-                                                          overwrites=dest_cat_overwrites
-                                                          )
+            try:
+                new_channel = await guild.create_text_channel(old_channel.name,
+                                                              reason="Clone command",
+                                                              category=destination_category,
+                                                              overwrites=dest_cat_overwrites
+                                                              )
+            except Exception as e:
+                traceback.print_exc()
+                print(f"there was an error - exiting creation")
+                break
+
+            print(f"Created {new_channel.id}: {new_channel.name}")
 
             created_role_channel_pairs.append((new_channel_role, new_channel))
 
