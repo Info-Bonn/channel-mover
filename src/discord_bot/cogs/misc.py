@@ -491,5 +491,53 @@ class Misc(commands.Cog):
 
         await interaction.followup.send(f"Written to: {file.absolute()}", ephemeral=True, file=discord.File(file))
 
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="toggle_role_for_category",
+                          description="Give role read+view permissions or remove them. "
+                                      "On removal you can delete the overwrite in general.")
+    @app_commands.guild_only
+    async def toggle_role_for_category(
+            self,
+            interaction: discord.Interaction,
+            category: discord.CategoryChannel,
+            role: discord.Role,
+            read: bool,
+            delete: bool = False
+    ):
+        resp: discord.InteractionResponse = interaction.response
+        await resp.defer(ephemeral=True, thinking=True)
+        for channel in category.channels:
+            read_messages: Optional[bool]
+
+            # we wanna set permissions explicitly (allow or forbid)
+            if read or (not read and not delete):
+                overwrite = discord.PermissionOverwrite(read_messages=read, view_channel=read)
+            # we wanna delete
+            elif not read and delete:
+                overwrite = None
+            # ???
+            else:
+                await interaction.followup.send(
+                    f"The chosen config is not possible in channel {channel.mention}, doing nothing fot it"
+                )
+                continue
+
+            await channel.set_permissions(
+                role,
+                overwrite=overwrite
+            )
+            print(f"Done for {channel.name}, {channel.id}")
+
+        await interaction.followup.send("Done :)")
+
+
+
+
+
+
+
+
+
+
 async def setup(bot):
     await bot.add_cog(Misc(bot))
