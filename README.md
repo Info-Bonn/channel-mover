@@ -61,7 +61,7 @@ _If a variable is set using env and json **the environment-variable replaces the
 * Ensure in the server settings that the roles are correctly sorted by semester, fix potential issues
 * Use `/rename_roles` to rename all roles. Example: `/rename_roles lower_role: @----WS22/23---- upper_role: @----SoSe23---- to_add: (ss23)` 
 * Create a new placeholder-role (above the old semester (arbitrary, but I group them like that))
-* Create / move a prototype-channel and role that represents a module channel with its related role.
+* Create / move a prototype-channel and role that represents a module channel with its related role (it should be stored in the admin section).
   * Configure the channels general permissions and the module-roles specific overwrites within this channel
 * Use `/clone_category_with_new_roles` to fill the new semesters category with life
   * `source_category`: use the old semester as source
