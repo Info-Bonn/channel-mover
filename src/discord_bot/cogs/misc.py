@@ -36,11 +36,6 @@ class Misc(commands.Cog):
             callback=self.add_tutor_annotations,
         )
 
-        self.ctx_revert_channels = app_commands.ContextMenu(
-            name='revert_channel_creation',
-            callback=self.ctx_revert_channel_creation,
-        )
-
         self.ctx_clear_reactions = app_commands.ContextMenu(
             name='clear_reactions',
             callback=self.remove_reactions,
@@ -88,76 +83,6 @@ class Misc(commands.Cog):
                 value=f'`{round(self.bot.latency * 1000)}ms`'),
             ephemeral=ephemeral
         )
-
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="cp", description="Copy a category-channel, does not include the channels in it")
-    @app_commands.guild_only
-    async def copy_category(self,
-                            interaction: discord.Interaction,
-                            source: discord.CategoryChannel,
-                            destination_name: str,
-                            position: Literal["top", "bottom", "below_source"] = "top"
-                            ):
-
-        pos_dict = {
-            "top": 0,  # TODO: why is 0 only second highest but -1 doesn't work? :shrug:
-            "bottom": len(interaction.guild.channels),
-            "below_source": source.position
-        }
-        await interaction.guild.create_category(destination_name,
-                                                overwrites=source.overwrites,
-                                                reason="cp command",
-                                                position=pos_dict[position])
-
-        await interaction.response.send_message("Copied.", ephemeral=True)
-
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="mv", description="Move all channels from one category to an other")
-    @app_commands.guild_only
-    async def move_channels(self,
-                            interaction: discord.Interaction,
-                            category_to_move_from: discord.CategoryChannel,
-                            destination: discord.CategoryChannel,
-                            module_selection_channel: discord.TextChannel = None,
-                            sync_perms_to_new_category: bool = True,
-                            preserve_disable_channel_role: bool = True,
-                            ):
-
-        if module_selection_channel is not None:
-            logger.warning(f"No module selection channel was given. continuing...")
-
-        resp: discord.InteractionResponse = interaction.response
-        await resp.defer(ephemeral=True, thinking=True)
-
-        for channel in category_to_move_from.channels:
-
-            logger.info(f"Editing channel {channel.name}...")
-
-            # get base perms
-            if sync_perms_to_new_category:
-                new_perms = destination.overwrites
-            else:
-                new_perms = channel.overwrites
-
-            # re-add module channel role if wanted, but with no perms
-            # this is helpful to create a new set of channels for the next semester with the same role names
-            # also exclude the channel where modules are chosen, this one has no channel role
-            if preserve_disable_channel_role and channel != module_selection_channel:
-                channel_role = self.get_channel_role(channel, category_to_move_from)
-                # setup new overwrite that disallows everything
-                channel_perms = discord.PermissionOverwrite.from_pair(discord.Permissions(), discord.Permissions.none())
-                # add to global overwrite
-                new_perms[channel_role] = channel_perms
-
-            await channel.edit(category=destination, overwrites=new_perms,
-                               reason=f"Interaction with {interaction.user.mention} issued that",)
-
-            logger.info(f"Done editing {channel.name}")
-            time.sleep(1)  # please the goods of rate-limit
-
-        followup: discord.Webhook = interaction.followup
-        logger.info(f"Done with the whole move process")
-        await followup.send("Done :)", ephemeral=True)
 
     # Example for an event listener
     # This one will be called on each message the bot receives
@@ -246,133 +171,6 @@ class Misc(commands.Cog):
 
 
         await interaction.followup.send("Done", ephemeral=True)
-
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="clone_category_with_new_roles",
-                          description="Clone module channels. Prototype Channel/role represent how to model perms, "
-                                      "using category as base.")
-    @app_commands.guild_only
-    async def clone_category_with_new_roles(self,
-                                            interaction: discord.Interaction,
-                                            source_category: discord.CategoryChannel,
-                                            old_module_selection_channel: discord.TextChannel,
-                                            prototype_channel: discord.TextChannel,
-                                            prototype_role: discord.Role,
-                                            destination_category: discord.CategoryChannel,
-                                            new_roles_below: discord.Role,
-                                            ):
-
-        old_channels: list[discord.TextChannel] = source_category.channels
-
-        # respond so interaction doesn't time out
-        await interaction.response.send_message(
-            f"trying to clone {len(old_channels)} and roles from '{source_category.name}' to '{source_category.name}'",
-            ephemeral=True)
-
-        guild = interaction.guild
-
-        log: list[str] = []  # log errors
-        # get permissions that the module role shall have
-        prototype_role_overwrites = prototype_channel.overwrites_for(prototype_role)
-
-        created_role_channel_pairs: list[tuple[discord.Role, discord.TextChannel]] = []
-
-        for old_channel in source_category.channels:
-            # this might be needed to ensure that roles are placed correctly.
-            # my guess is that the role positioning gets messed up because the roles get new positions,
-            # so we refresh all roles before determining the new position
-            await interaction.guild.fetch_roles()
-            new_roles_below = interaction.guild.get_role(new_roles_below.id)
-            # TODO: this starts one role too low, maybe because everyone is role 0?
-
-            # ignore selection channel
-            if old_channel.id == old_module_selection_channel.id:
-                continue
-
-            # TODO: this messes HARD with the role order even tough the position should be clear
-            #  I suggest saving the previous layout and doing a sanity / cleanup check afterwards.
-            #  maybe we should do a snapshot before to at least reorder the rest relative to each other?
-            # create new role with same base permission set at target position in hierarchy
-            try:
-                new_channel_role = await self.clone_role(prototype_role,
-                                                         name=old_channel.name,
-                                                         position_in_hierarchy=new_roles_below.position)
-            except Exception as e:
-                traceback.print_exc()
-                print(f"there was an error - exiting creation")
-                break
-
-            print(f"Created {new_channel_role.id}: {new_channel_role.name}")
-
-            # configure overwrite for new channel
-            # TODO: note to the user: make sure that the category doesn't allow unwanted roles like 'member'!
-            dest_cat_overwrites = destination_category.overwrites
-            dest_cat_overwrites[new_channel_role] = prototype_role_overwrites
-
-            # create new channel
-            try:
-                new_channel = await guild.create_text_channel(old_channel.name,
-                                                              reason="Clone command",
-                                                              category=destination_category,
-                                                              overwrites=dest_cat_overwrites
-                                                              )
-            except Exception as e:
-                traceback.print_exc()
-                print(f"there was an error - exiting creation")
-                break
-
-            print(f"Created {new_channel.id}: {new_channel.name}")
-
-            created_role_channel_pairs.append((new_channel_role, new_channel))
-
-        # TODO: we've got all the roles - should we fetch their positions and reorder until they've got the right spots?
-        #  but this will cost an insane amount of api calls...
-        # write log output
-        log_msg = f"Incidents:\n" + "\n".join(log) if len(log) > 0 else "No incidents during creation reported"
-        await interaction.followup.send(log_msg)
-
-        # report role 'map' containing channel, role, role_id
-        joined = "\n\n".join(
-            f"{channel.mention} {role.mention} - {role.id}" for role, channel in created_role_channel_pairs)
-        await interaction.followup.send(joined)
-
-        # format for reaction role bots command
-        rr_format = "Roles: `" + " ".join([f"<@&{role.id}>" for role, channel in created_role_channel_pairs]) + "`"
-        await interaction.followup.send(rr_format)
-
-        print(rr_format)
-
-    async def ctx_revert_channel_creation(self,
-                                    interaction: discord.Interaction,
-                                    message: discord.Message
-                                    ):
-        """ Revert everything that was done with /clone_category_with_new_roles, works only on the output message of that command """
-        async def iter_delete(to_iter: list[int], get_function):
-            for mention in to_iter:
-                try:
-                    obj = get_function(mention)
-                    await obj.delete(reason="revert")
-                    logger.info(f"Deleted {obj.name}")
-                except Exception as e:
-                    logger.warning(f"Couldn't delete thing with id='{mention}', reason: {e}")
-
-        resp: discord.InteractionResponse = interaction.response
-        await resp.defer(ephemeral=True, thinking=True)
-        followup: discord.Webhook = interaction.followup
-
-
-        role_mentions = message.raw_role_mentions
-        channel_mentions = message.raw_channel_mentions
-
-        await iter_delete(role_mentions, interaction.guild.get_role)
-        logger.info(f"Done with the roles")
-        await followup.send("Done with the roles", ephemeral=True)
-        await iter_delete(channel_mentions, interaction.guild.get_channel)
-        logger.info(f"Done with the channels")
-        await followup.send("Done with the channels", ephemeral=True)
-
-        logger.info(f"Done with the whole remove process")
-        await followup.send("Done. Good luck next time! :)", ephemeral=True)
 
 
     async def remove_reactions(self, interaction: discord.Interaction,
@@ -659,7 +457,7 @@ class Misc(commands.Cog):
 
     @commands.has_permissions(administrator=True)
     @commands.command("merge")
-    async def apply(self, ctx: commands.Context):
+    async def merge(self, ctx: commands.Context):
         roles_file = Path("data/roles_dump-edited.json")
         roles_file = Path("data/fix.json")
         roles_dict: dict[str, list[str]] = json.loads(roles_file.read_text())
