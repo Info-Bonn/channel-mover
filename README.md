@@ -52,30 +52,55 @@ Or use a json-file expected at: `./data/config.json` like:
 
 _If a variable is set using env and json **the environment-variable replaces the json**!_
 
+## My new Workflow (you need admin permissions)
 
-## My Workflow (you need admin permissions)
-### setting up a new semester
-#### creating the channel infrastructure
-(I recommend at least two discord instances for this process. Best is three. Two with your main account, one with a secondary account that has normal permissions.)
-* Clone the currents semester category channel using `/cp source dest_name` to get a category with the correct case permissions
-* Ensure in the server settings that the roles are correctly sorted by semester, fix potential issues
-* Use `/rename_roles` to rename all roles. Example: `/rename_roles lower_role: @----WS22/23---- upper_role: @----SoSe23---- to_add: (ss23)` 
-* Create a new placeholder-role (above the old semester (arbitrary, but I group them like that))
-* Create / move a prototype-channel and role that represents a module channel with its related role (it should be stored in the admin section).
-  * Configure the channels general permissions and the module-roles specific overwrites within this channel
-* Use `/clone_category_with_new_roles` to fill the new semesters category with life
-  * `source_category`: use the old semester as source
-  * `old_module_selection_channel`: pass its module selection channel (this is needed because the channel doesn't need a special role)
-  * `prototype_channel`:  give a prototype channel that holds the default permissions for a module channel (and configure the prototype-roles permissions)
-  * `prototype_role`: give prototype role that represents the (permission) overwrites a module-role shall have inside the related channel
-  * `destination_category`: give destination category (the one you created earlier)
-  * `new_roles_below`: give the manually created placeholder-role
-  * press enter, pray and monitor the bots logs, the category as well as the roles overview closely (if this goes wrong you've got a lot of cleanup to do!)
-    * If you f\*ck it up - there is (now whilst writing this) a new revert context-command `revert_channel_creation` that can revert what you've done by utilizing the result message.
-* Check that all roles were created correctly (even tough creating a role shouldn't be hard, discord always messes up the positioning!)
-* Check that all permissions are right
+There is a function called `misc.merge()` that does essentially all parts that are todo but with more edge case handling
+
+### Clearing the roles
+*Make a role backup using `/role_backup`
+* Specify a list of roles you wanna clear
+  * TODO: auto generate this list by passing a category and identifying the roles using `get_channel_role()`
+* Ensure that the `RoleName (old)` role exists (or let the function create that if needed - `merge()` does that)
+* Move all members from the current role to the `old`-role (`merge()` can do that)
+* Manually Check that all targeted roles are indeed empty
+
+### Tutor Handling + "You're in the old semester"-message
+* Note: the tutors pool is (only) cleared on bot restart. keep that in mind.
+* If tutors were collected: use `add_tutor_annotations` (context menu command) to add them to the pool (you can add multiple messages)
+* Remove all tutors that did not consent from the pool using `/rm_tutor` (TODO: this malfunctioned last time)
+  * Do a manual sanity check if nobody was mentioned that didn't want to be.
+* Use `/finish_channels` on the category you wanna close. Provide the old semester tag to it.
+  * The bot will send the closure message and attach the tutors if any.
+
+* Remember to remove all tutors that are no longer tutors. I tried automatic it based on a message reaction, but it sucked.
+
+
+##### Documenting the Tutors
+* create messages that holds all modules and tutors in the following format:
+```
+#module-channel-1
+@module-tutor-1
+@tutor-2
+
+#module-channel-n
+@module-tutor-n
+@module-tutor-n+1
+```
+* use the context action `add_tutor_annotations` on that message
+  * the bot will parse the message and add them to its - in memory - pool
+
+
+### Reaction Roles
+
+#### Cleaning Reaction Roles (this takes a while)
+* Use the context menu command `clear_reactions` for that.
+  * The bot will keep the reactions of the reaction role bot. (the id is hardcoded in the command rn...)
+
+#### Ensuring the modules are up to date
+See section `create the selection message` 
 
 #### create the selection message
+(You can recycle the old channel and message and edit it in place...)
 * Create the new choose-module message (make it visible only for admins)
 * Create the selection channel
 * Create a webhook (or redirect an existing one)
@@ -92,32 +117,5 @@ _If a variable is set using env and json **the environment-variable replaces the
 * Create a thread below the messages asking for any addition
 * Open the channel to everyone, make sure to not allow new reactions and messages
 
-### archiving an old semester
-#### moving and archiving the channels
-* Create a new category that will become the archive
-  * Hide it from `@everyone` and add your `view archive` role to it with the permissions `read` and `read history`
-  * I recommend to explicitly disable all other text permissions for both roles just to be safe
-* Use `/mv` to move all channels from the old module channel category to the new archive
-  * Enter the rose selection channel as `module_selection_channel` (this is required since it's an exception permission-wise (it doesn't have a module-role))
-  * Double check that target and source are set correctly!
-  * Note: the command breaks if there are more roles with overrides in a channel than only the module-role
-
-#### documenting the tutors
-* create a single message that holds all modules and tutors in the following format:
-```
-#module-channel-1
-@module-tutor-1
-@tutor-2
-
-#module-channel-n
-@module-tutor-n
-@module-tutor-n+1
-```
-* use the context action `add_tutor_annotations` on that message
-  * the bot will parse the message and send the list of tutors in the above-mentioned module channel
-
-* manually remove all tutors that are no longer tutors. I tried automatic it based on a message reaction, but it sucked.
-
-
-### documentation
-In order to render this documentation, just call `doxygen`
+### Hiding the old semester
+* You can use `/toggle_role_for_category` to add the `Archivbesuch`-Rolle to the category (and remove it later)
