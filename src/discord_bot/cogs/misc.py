@@ -116,47 +116,6 @@ class Misc(commands.Cog):
         channel_role = only_in_this_channel.pop()
         return channel_role
 
-    async def clone_role(self, role: discord.Role, position_in_hierarchy, name="") -> discord.Role:
-        """ Create an exact copy of a role positioned at a specific position in hierarchy (optional with other name) """
-        role = await role.guild.create_role(
-            name=name or role.name,
-            permissions=role.permissions,
-            colour=role.colour,
-            hoist=role.hoist,
-            display_icon=role.display_icon,
-            mentionable=role.mentionable,
-            reason="Clone command",
-        )
-        await role.edit(position=position_in_hierarchy)
-
-        return role
-
-    # TODO: iterate over old channels an dget roles from there instead of using an interval
-    #  the role interval might be screwed due to discord not being able to create roles at a fixed position
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="rename_roles",
-                          description="Rename roles with scheme ({name} and {to_add}), "
-                                      "roles containing scheme and limits are not edited.")
-    @app_commands.guild_only
-    async def rename_roles_bulk(self,
-                                interaction: discord.Interaction,
-                                lower_role: discord.Role,
-                                upper_role: discord.Role,
-                                to_add: str,
-                                rename_scheme: str = "{name} {to_add}"):
-
-        scheme = rename_scheme.replace("{to_add}", to_add)
-
-        await interaction.response.send_message(
-            f"Renaming channels with scheme: '{scheme}'",
-            ephemeral=True)
-        # refresh roles, because it bugged once, this will fix it hopefully
-        await interaction.guild.fetch_roles()
-        for role in interaction.guild.roles:
-            if (lower_role < role < upper_role) and to_add not in role.name:
-                await role.edit(name=scheme.replace("{name}", role.name))
-
-        await interaction.followup.send("Done")
 
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="mk_role_down")
@@ -577,6 +536,7 @@ class Misc(commands.Cog):
     @commands.has_permissions(administrator=True)
     @commands.command("sort")
     async def sort(self, ctx: commands.Context):
+        """needs a list of roles and then attempts to find the '(old)' role for this role and move it below the other role"""
         roles_file = Path("data/roles_dump-edited.json")
         roles_dict: dict[str, list[str]] = json.loads(roles_file.read_text())
 
