@@ -2,6 +2,7 @@
 
 import discord
 from discord.ext import commands
+from discord.ext.commands import Context
 
 # setup of logging and env-vars
 # logging must be initialized before environment, to enable logging in environment
@@ -123,6 +124,12 @@ class MyBot(commands.Bot):
 
 # Create instance of our bot
 bot = MyBot()
+
+@bot.command("r")
+async def reload(ctx: Context):
+    await bot.reload_extension(".cogs.misc", package=__package__)
+    await ctx.send("Done.")
+    print("reloaded successfully")
 
 
 # Entrypoint function called from __init__.py
