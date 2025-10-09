@@ -1,14 +1,18 @@
+import asyncio
 import json
 import re
 import time
 import traceback
+from collections import defaultdict
 from pathlib import Path
+from pprint import pprint
 from typing import Literal, Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
+from discord.ext.commands import guild_only
 
 from ..log_setup import logger
 from ..utils import utils as ut
@@ -36,8 +40,17 @@ class Misc(commands.Cog):
             name='revert_channel_creation',
             callback=self.ctx_revert_channel_creation,
         )
+
+        self.ctx_clear_reactions = app_commands.ContextMenu(
+            name='clear_reactions',
+            callback=self.remove_reactions,
+        )
+
         self.bot.tree.add_command(self.ctx_tutor_message)
         self.bot.tree.add_command(self.ctx_revert_channels)
+        self.bot.tree.add_command(self.ctx_clear_reactions)
+
+        self.tutor_storage: dict[discord.TextChannel, list[int]] = defaultdict(list)
 
 
     # a chat based command
@@ -361,6 +374,40 @@ class Misc(commands.Cog):
         logger.info(f"Done with the whole remove process")
         await followup.send("Done. Good luck next time! :)", ephemeral=True)
 
+
+    async def remove_reactions(self, interaction: discord.Interaction,
+                               message: discord.Message):
+
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Only admins can do that. Sorry.", ephemeral=True)
+            return
+
+        resp: discord.InteractionResponse = interaction.response
+        await resp.defer(ephemeral=True, thinking=True)
+
+        RR_BOT_ID = 858052858418036736
+        rr_bot = interaction.guild.get_member(RR_BOT_ID)
+
+        if rr_bot is None:
+            await interaction.followup.send(f"cant fetch reaction role bot with id {RR_BOT_ID}")
+            return
+
+        for reaction in message.reactions:
+            reactors = [user async for user in reaction.users()]
+            logger.info(f"Processing Reaction: {reaction}")
+
+            for reactor in reactors:
+                if reactor.id == rr_bot.id:
+                    logger.info(f"Found RR Bot. Not removing.")
+                    continue
+
+                logger.info(f"removing {reaction} for {reactor}")
+                await reaction.remove(reactor)
+
+        logger.info("Done")
+        await interaction.followup.send(f"wiped")
+
+
     async def add_tutor_annotations(self,
                                     interaction: discord.Interaction,
                                     message: discord.Message
@@ -388,25 +435,74 @@ class Misc(commands.Cog):
 
         res_dict = await self.parse_message(message)
 
-        # TODO: maybe move this to config?
-        tutor_header = "Tutor:innen (evtl. unvollständig):\n"
-        tutors: list[discord.Member]
-        for channel, tutors in res_dict.items():
+        for k, v in res_dict.items():
+            self.tutor_storage[k].extend(v)
 
-            logger.info(f"Creating message for: {channel.name}, num of tutors: {len(tutors)}")
-            # mention the tutor manually - this accounts for members that might have left and would resolve to None.
-            # we encode the true id in a "faulty" ping. that preserves the raw data and discord handles the
-            # display as 'unknown'
-            tutor_names = "\n".join(f"<@{tutor}>" for tutor in tutors)
-            tutor_msg = tutor_header + tutor_names
-            logger.debug(tutor_msg)
-            msg = await channel.send(tutor_msg)
+        logger.info(f"added message {message.id} to pool.")
+
+        await interaction.followup.send(f"Added message {message.id}.")
+
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="rm_tutor",
+                          description="Remove tutor from storage")
+    @app_commands.guild_only
+    async def rm_tutor(
+            self,
+            interaction: discord.Interaction,
+            member: discord.Member
+    ):
+
+        await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
+
+        v: list[int]
+        found_times = 0
+        for k, v in self.tutor_storage.items():
+            if member.id in v:
+                found_times +=1
+                v.remove(member.id)
+                self.tutor_storage[k] = v
+                logger.info(f"removed tutor {member.id} from '{k}'")
+
+        await interaction.followup.send(f"removed tutor {member.name}, {member.id} from {found_times} channels.", ephemeral=True)
+
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="finish_channels",
+                          description="finish channels for semester")
+    @app_commands.guild_only
+    async def commit(self, interaction: discord.Interaction, category: discord.CategoryChannel, old_semester: str):
+        await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
+
+        header = f"**Achtung** hier drüber beginnt das Semester {old_semester}."
+
+        for channel in category.channels:
+
+            new_msg = header
+
+            tutors: list[int] = self.tutor_storage[channel]
+
+            if tutors:
+                tutor_header = f"\n\nTutor:innen im {old_semester} waren (evtl. unvollständig):\n"
+
+                tutors = list(set(tutors))
+                logger.info(f"Creating message for: {channel.name}, num of tutors: {len(tutors)}")
+                # mention the tutor manually - this accounts for members that might have left and would resolve to None.
+                # we encode the true id in a "faulty" ping. that preserves the raw data and discord handles the
+                # display as 'unknown'
+                tutor_names = "\n".join(f"<@{tutor}>" for tutor in tutors)
+                new_msg = new_msg + tutor_header + tutor_names
+
+            logger.info(new_msg)
+            msg = await channel.send(new_msg)
+            logger.info(f"Sent message to {channel.name}, {channel.id}")
             await msg.pin()
 
-        await interaction.followup.send("Done.")
+        await interaction.followup.send(f"Sent messages...", ephemeral=True)
 
 
-    # This method was scratched with GPT4 and heavily modified by myself (honestly would have been faster on my own)
+
+# This method was scratched with GPT4 and heavily modified by myself (honestly would have been faster on my own)
     # parsing just ins't beautiful, but it came out better than I first envisioned
     async def parse_message(self, message: discord.Message) -> dict[
         discord.TextChannel, list[int]]:
@@ -530,13 +626,185 @@ class Misc(commands.Cog):
 
         await interaction.followup.send("Done :)")
 
+    @commands.has_permissions(administrator=True)
+    @commands.command(name="collect")
+    async def collect_roles(self, ctx: commands.Context,):
+        guild = ctx.guild
+
+        role_dict = defaultdict(list)
+
+        for role in guild.roles:
+            name = role.name.split(" ")[0]
+            role_dict[name].append(role.name)
+
+        pprint(role_dict)
+
+        data_file = Path("data/roles_dump.json")
+        data_file.write_text(json.dumps(role_dict, indent=4))
+
+        print(f"written to {data_file.as_posix()}")
 
 
+    @staticmethod
+    def get_role_by_name(guild: discord.Guild, role_name: str) -> discord.Role | None:
+        res = list(filter(lambda x: x.name == role_name, guild.roles))
+
+        if len(res) == 1:
+            return res[0]
+
+        if len(res) > 1:
+            logger.warning(f"Multiple roles with name '{role_name}' found, returning None")
+
+        return None
+
+    @commands.has_permissions(administrator=True)
+    @commands.command("merge")
+    async def apply(self, ctx: commands.Context):
+        roles_file = Path("data/roles_dump-edited.json")
+        roles_file = Path("data/fix.json")
+        roles_dict: dict[str, list[str]] = json.loads(roles_file.read_text())
+
+        # pprint(roles_dict)
+
+        guild = ctx.guild
+        member_interaction_count = 0
+        for role in guild.roles:
+
+            no_move = False
+            for k, v in roles_dict.items():
+                if role.name in v:
+                    role_list = v
+                    break
+            else:
+                logger.warning(f"cant find role {role.name=}, {role.id} in mapping, skipping role...")
+                continue
+
+            if k.startswith("[NO MOVE]"):
+                no_move = True
+                k = k.replace("[NO MOVE]", "")
 
 
+            current_role_candidates = list(filter(lambda x: "(" not in x , role_list))
+            if not current_role_candidates:
+                logger.warning(f"There is no candidate role for {role.name}, skipping role")
+                continue
+
+            current_role = self.get_role_by_name(guild, min(current_role_candidates)) or self.get_role_by_name(guild, k)
+            if current_role is None:
+                logger.warning(f"cant find role '{min(current_role_candidates)}' on guild, current_role is None")
 
 
+            if len(role_list) == 1:
+                old_role_name = f"{k} (old)"
+                logger.info(f"Only one role for key={k}, creating role with name '{old_role_name}'")
+                old_role = None
+                # TODO discord interaction (create role)
+                old_role = await guild.create_role(name=old_role_name, reason="did not exist yet")
 
+
+            else:
+                old_role_renamed_candidates = list(filter(lambda x: "(old)" in x , role_list))
+                if len(old_role_renamed_candidates) == 1:
+                    orc = old_role_renamed_candidates[0]
+                    old_role = self.get_role_by_name(guild, orc)
+                    if old_role is None:
+                        logger.warning(f"Cant find '{orc}',, skipping...")
+                        continue
+                    logger.info(f"Found old role {old_role.name}, {role.id}")
+                else:
+                    old_role_candidates = list(filter(lambda x: "(" in x , role_list))
+                    orc = max(old_role_candidates)
+                    old_role = self.get_role_by_name(guild, orc)
+
+                if old_role is None:
+                    logger.warning(f"cant find role old role {orc} guild, skipping role...")
+                    continue
+
+            if current_role == old_role:
+                logger.error(f"Old role cannot be same as current role (skipping): {role=} ")
+                continue
+
+            if role == current_role and role.name != k:
+                logger.info(f"Renaming role '{role.name}' to '{k}', {role.id=}")
+                # TODO discord interaction (rename role)
+                role = await current_role.edit(name=k)
+
+
+            if role == old_role:
+                logger.info(f"{role} is old role, not moving anyone. done with role.")
+                old_role_name = f"{k} (old)"
+                if old_role.name != old_role_name:
+                    logger.info(f"renaming role old role '{role.name}' to '{old_role_name}'")
+                    old_role = await old_role.edit(name=old_role_name)
+
+                continue
+
+            if no_move and role == current_role:
+                logger.info(f"Skipping moving of members for role: '{role.name}', {role.id}")
+                continue
+
+            logger.info(f"Starting to move members from role {role} to {old_role}")
+            for member in role.members:
+                logger.debug(f"handling user {member.name}")
+                if old_role not in member.roles:
+                    # TODO discord interaction (give member old role)
+                    await member.add_roles(old_role)
+                    member_interaction_count += 1
+
+                # TODO discord interaction (remove member from current role)
+                await member.remove_roles(role)
+                member_interaction_count += 1
+                # TODO async sleep
+                await asyncio.sleep(0.4)  # please the goods of rate-limit
+
+                if member_interaction_count % 500 == 0:
+                    await ctx.send(f"{member_interaction_count} / ~24000")
+
+                if member_interaction_count % 200 == 0:
+                    logger.debug(f"{member_interaction_count} / ~24000")
+
+            role = await guild.fetch_role(role.id)
+            if len(role.members) == 0 and role != old_role and role != current_role:
+                # TODO discord interaction (delete role)
+                await role.delete(reason="Good bye...")
+                logger.info(f"Role {role=} is now empty, and neither current nor old role. deleting...")
+                # logger.info(f"Role {role.name}, {role.id} is ready for deletion")
+            else:
+                logger.warning(f"Role {role=} is smh not empty, not ready for deletion...")
+
+        print(f"Done, total member interactions: {member_interaction_count}")
+        await ctx.send(f"Command finished.")
+
+
+    @commands.has_permissions(administrator=True)
+    @commands.command("sort")
+    async def sort(self, ctx: commands.Context):
+        roles_file = Path("data/roles_dump-edited.json")
+        roles_dict: dict[str, list[str]] = json.loads(roles_file.read_text())
+
+        guild = ctx.guild
+        for key in roles_dict:
+            logger.info(f"key: {key}")
+            role = self.get_role_by_name(guild, key)
+            old_role = self.get_role_by_name(guild, f"{key} (old)")
+
+            if old_role is None:
+                logger.warning(f"No old role found for {key}. skipping...")
+                continue
+            if role is None:
+                logger.warning(f"No current role found for {key}. skipping...")
+                continue
+
+            if role.position == old_role.position + 1:
+                print(f"Skipping {key} - already grouped correctly")
+                continue
+
+            logger.info(f"moving {role.name}, {role.id} below {role.name}, {role.id}")
+            await old_role.edit(position=role.position - 1)
+
+            guild = await self.bot.fetch_guild(guild.id)
+
+        logger.info(f"Command done")
 
 
 async def setup(bot):
