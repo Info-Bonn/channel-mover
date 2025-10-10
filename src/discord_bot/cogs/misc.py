@@ -345,8 +345,8 @@ class Misc(commands.Cog):
 
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="toggle_role_for_category",
-                          description="Give role read+view permissions or remove them. "
-                                      "On removal you can delete the overwrite in general.")
+                          description="Give role read+view+write permissions or remove them. "
+                                      "Removal: you can delete the overwrite.")
     @app_commands.guild_only
     async def toggle_role_for_category(
             self,
@@ -354,6 +354,7 @@ class Misc(commands.Cog):
             category: discord.CategoryChannel,
             role: discord.Role,
             read: bool,
+            write: bool,
             delete: bool = False
     ):
         resp: discord.InteractionResponse = interaction.response
@@ -363,7 +364,9 @@ class Misc(commands.Cog):
 
             # we wanna set permissions explicitly (allow or forbid)
             if read or (not read and not delete):
-                overwrite = discord.PermissionOverwrite(read_messages=read, view_channel=read)
+                overwrite = discord.PermissionOverwrite(
+                    read_messages=read, view_channel=read, send_messages=write, add_reactions=write
+                )
             # we wanna delete
             elif not read and delete:
                 overwrite = None
@@ -563,6 +566,107 @@ class Misc(commands.Cog):
 
         logger.info(f"Command done")
 
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="move_members_a_to_b",
+                          description="move /copy members from A to B")
+    @app_commands.guild_only
+    async def move_members_a_to_b(self, interaction: discord.Interaction, source: discord.Role, target: discord.Role, move: bool = True):
+        await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
+
+        members = source.members
+
+        # checksum_file = Path("data/role_info_1759966160.891391.json")
+        #
+        # checksum_dict: dict[str, dict[str, str, int, list[int]]] = json.loads(checksum_file.read_text())
+        #
+        # members = [interaction.guild.get_member(m) for m in checksum_dict["1221948359074381965"]["members"]]
+
+        logger.info(f"processing {len(members)} members")
+        for i, m in enumerate(members):
+            if m not in target.members:
+                await m.add_roles(target)
+
+            if move and m in source.members:
+                await m.remove_roles(source)
+
+            if i % 10 == 0:
+                logger.info(f"{i} / {len(members)}")
+
+        logger.info("Done")
+        await interaction.followup.send("Done :)")
+
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="checksum",
+                          description="move /copy members from A to B")
+    @app_commands.guild_only
+    async def checksum(self, interaction: discord.Interaction):
+        """guess you'll never need this again. it was for the flattening..."""
+        await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
+
+        roles_file = Path("data/roles_dump-edited.json")
+        # roles_file = Path("data/fix.json")
+        roles_dict: dict[str, list[str]] = json.loads(roles_file.read_text())
+
+        checksum_file = Path("data/role_info_1759966160.891391.json")
+
+        checksum_dict: dict[str, dict[str, str, int, list[int]]] = json.loads(checksum_file.read_text())
+
+        aggregated_members: defaultdict[discord.Role, set[int]] = defaultdict(set)
+
+        for module_name, v in roles_dict.items():
+            logger.info(f"checking roles for '{module_name}'")
+
+            module_role = self.get_role_by_name(interaction.guild, f"{module_name} (old)")
+            if module_role is None:
+                logger.warning(f"Cant find role for {module_role}. skipping")
+                continue
+
+            for role_name in v:
+
+                # find role
+                for checksum_role_id, checksum_role_info in checksum_dict.items():
+                    if checksum_role_info["role_name"] == role_name:
+                        break
+                else:
+                    logger.warning(f"No role found for name '{role_name}', continuing...")
+                    continue
+
+                aggregated_members[module_role].update(checksum_role_info["members"])
+
+                checksum_role = interaction.guild.get_role(int(checksum_role_id))
+
+                logger.info(f"Updated {module_role} with {role_name} {'(deleted)' if checksum_role is None else '(existing)'}")
+
+            if len(aggregated_members[module_role]) == len(module_role.members):
+                logger.info(f"Sanity check for module {module_role.name} complete! (num members: {len(module_role.members)})")
+                continue
+
+            logger.warning(f"Missmatch for {module_role.name} ({module_role.id}): {len(aggregated_members[module_role])=}, {len(module_role.members)=}")
+
+            module_role_members_set = {m.id for m in module_role.members}
+            should_be_members = aggregated_members[module_role]
+            guild = interaction.guild
+            if len(should_be_members) < len(module_role.members):
+                to_remove = module_role_members_set - should_be_members
+                logger.info(f"To remove {len(to_remove)}: {to_remove}")
+                for m in to_remove:
+                    member = guild.get_member(m)
+                    await member.remove_roles(module_role)
+                logger.info(f"removed overshoot members")
+
+            else:
+                to_add = should_be_members - module_role_members_set
+                logger.info(f"To add {len(to_add)}: {to_add}")
+                for m in to_add:
+                    member = guild.get_member(m)
+                    await member.add_roles(module_role)
+                logger.info(f"added undershoot members")
+
+
+        logger.info(f"Done")
+        await interaction.followup.send("Done :)", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Misc(bot))
