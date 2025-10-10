@@ -42,7 +42,6 @@ class Misc(commands.Cog):
         )
 
         self.bot.tree.add_command(self.ctx_tutor_message)
-        self.bot.tree.add_command(self.ctx_revert_channels)
         self.bot.tree.add_command(self.ctx_clear_reactions)
 
         self.tutor_storage: dict[discord.TextChannel, list[int]] = defaultdict(list)
