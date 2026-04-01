@@ -103,7 +103,7 @@ See section `create the selection message`
 * Create the new choose-module message (make it visible only for admins)
 * Create the selection channel
 * Create a webhook (or redirect an existing one)
-* Go to https://discohook.org (note: the send button is currently broken in firefox but it works in chrome)
+* Go to https://discohook.app/ (note: the send button is currently broken in firefox but it works in chrome)
 * Recreate the old message (I recommend using their bot's context function to get the old content back)
 * Check that the general information texts are correct
 * Ensure that all modules are actually offered
@@ -118,3 +118,5 @@ See section `create the selection message`
 
 ### Hiding the old semester
 * You can use `/toggle_role_for_category` to add the `Archivbesuch`-Rolle to the category (and remove it later)
+  * It's important that the members are moved to the (old)-role in the same moment as the category is set to hidden. this way the module channel roles don't need a toggle and can stay 'active'.
+* You can use the same command to "reactivate" the old channels by removing archivbesuch
