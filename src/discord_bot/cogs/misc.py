@@ -2,26 +2,26 @@ import asyncio
 import json
 import re
 import time
-import traceback
 from collections import defaultdict
 from pathlib import Path
 from pprint import pprint
-from typing import Literal, Optional
+from typing import Literal
+from typing import Optional
 
 import discord
-from discord import app_commands, Role
+from discord import Role
+from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
-from discord.ext.commands import guild_only
 
 from ..log_setup import logger
 from ..utils import utils as ut
-
 
 ### @package misc
 #
 # Collection of miscellaneous helpers.
 #
+
 
 class Misc(commands.Cog):
     """
@@ -32,12 +32,12 @@ class Misc(commands.Cog):
         self.bot: commands.Bot = bot
 
         self.ctx_tutor_message = app_commands.ContextMenu(
-            name='add_tutor_annotations',
+            name="add_tutor_annotations",
             callback=self.add_tutor_annotations,
         )
 
         self.ctx_clear_reactions = app_commands.ContextMenu(
-            name='clear_reactions',
+            name="clear_reactions",
             callback=self.remove_reactions,
         )
 
@@ -46,9 +46,8 @@ class Misc(commands.Cog):
 
         self.tutor_storage: dict[discord.TextChannel, list[int]] = defaultdict(list)
 
-
     # a chat based command
-    @commands.command(name='ping', help="Check if Bot available")
+    @commands.command(name="ping", help="Check if Bot available")
     async def ping(self, ctx):
         """!
         ping to check if the bot is available
@@ -57,17 +56,11 @@ class Misc(commands.Cog):
         """
         logger.info(f"ping: {round(self.bot.latency * 1000)}")
 
-        await ctx.send(
-            embed=ut.make_embed(
-                name='Bot is available',
-                value=f'`{round(self.bot.latency * 1000)}ms`')
-        )
+        await ctx.send(embed=ut.make_embed(name="Bot is available", value=f"`{round(self.bot.latency * 1000)}ms`"))
 
     @app_commands.command(name="ping", description="Ping as a slash command")
     # @app_commands.guild_only
-    async def ping_slash(self,
-                         interaction: discord.Interaction,
-                         mode: Optional[Literal["silent", "loud"]]):
+    async def ping_slash(self, interaction: discord.Interaction, mode: Optional[Literal["silent", "loud"]]):
         """
         Ping command implementing the same functionality as "chat"-command
         But with extra option to be silent
@@ -77,10 +70,8 @@ class Misc(commands.Cog):
         ephemeral = True if mode and mode == "silent" else False
 
         await interaction.response.send_message(
-            embed=ut.make_embed(
-                name='Bot is available',
-                value=f'`{round(self.bot.latency * 1000)}ms`'),
-            ephemeral=ephemeral
+            embed=ut.make_embed(name="Bot is available", value=f"`{round(self.bot.latency * 1000)}ms`"),
+            ephemeral=ephemeral,
         )
 
     # Example for an event listener
@@ -95,8 +86,12 @@ class Misc(commands.Cog):
     async def my_task(self):
         pass
 
-    def get_channel_role(self, old_channel: discord.TextChannel,
-                         target_category: discord.CategoryChannel, additional_blacklists: list[discord.Role] = None) -> Optional[discord.Role]:
+    def get_channel_role(
+        self,
+        old_channel: discord.TextChannel,
+        target_category: discord.CategoryChannel,
+        additional_blacklists: list[discord.Role] = None,
+    ) -> Optional[discord.Role]:
         """
         Assuming that the role in question is the only role in that channel that has permissions
         beside the roles that are in the category defined
@@ -105,8 +100,8 @@ class Misc(commands.Cog):
         if additional_blacklists is None:
             additional_blacklists = []
         # do comprehension to filter only for role-overwrites
-        base_overwrites_set = set(ov for ov in target_category.overwrites.keys() if type(ov) == discord.Role)
-        overwritten_roles_set = set(ov for ov in old_channel.overwrites.keys() if type(ov) == discord.Role)
+        base_overwrites_set = {ov for ov in target_category.overwrites.keys() if type(ov) == discord.Role}
+        overwritten_roles_set = {ov for ov in old_channel.overwrites.keys() if type(ov) == discord.Role}
 
         overwritten_roles_set = overwritten_roles_set - set(additional_blacklists)
 
@@ -118,24 +113,19 @@ class Misc(commands.Cog):
         channel_role = only_in_this_channel.pop()
         return channel_role
 
-
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="mk_role_down")
     @app_commands.guild_only
-    async def mk_role(self, interaction: discord.Interaction,
-                            name: str):
+    async def mk_role(self, interaction: discord.Interaction, name: str):
 
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         role = await interaction.guild.create_role(name=name)
         await role.edit(position=1)
 
-
         await interaction.followup.send("Done", ephemeral=True)
 
-
-    async def remove_reactions(self, interaction: discord.Interaction,
-                               message: discord.Message):
+    async def remove_reactions(self, interaction: discord.Interaction, message: discord.Message):
 
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("Only admins can do that. Sorry.", ephemeral=True)
@@ -166,11 +156,7 @@ class Misc(commands.Cog):
         logger.info("Done")
         await interaction.followup.send(f"wiped")
 
-
-    async def add_tutor_annotations(self,
-                                    interaction: discord.Interaction,
-                                    message: discord.Message
-                                    ):
+    async def add_tutor_annotations(self, interaction: discord.Interaction, message: discord.Message):
         """
         parses a message of the format:
         #module-channel-1
@@ -191,7 +177,6 @@ class Misc(commands.Cog):
 
         await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
 
-
         res_dict = await self.parse_message(message)
 
         for k, v in res_dict.items():
@@ -201,16 +186,10 @@ class Misc(commands.Cog):
 
         await interaction.followup.send(f"Added message {message.id}.")
 
-
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="rm_tutor",
-                          description="Remove tutor from storage")
+    @app_commands.command(name="rm_tutor", description="Remove tutor from storage")
     @app_commands.guild_only
-    async def rm_tutor(
-            self,
-            interaction: discord.Interaction,
-            member: discord.Member
-    ):
+    async def rm_tutor(self, interaction: discord.Interaction, member: discord.Member):
 
         await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
 
@@ -218,17 +197,17 @@ class Misc(commands.Cog):
         found_times = 0
         for k, v in self.tutor_storage.items():
             if member.id in v:
-                found_times +=1
+                found_times += 1
                 v.remove(member.id)
                 self.tutor_storage[k] = v
                 logger.info(f"removed tutor {member.id} from '{k}'")
 
-        await interaction.followup.send(f"removed tutor {member.name}, {member.id} from {found_times} channels.", ephemeral=True)
-
+        await interaction.followup.send(
+            f"removed tutor {member.name}, {member.id} from {found_times} channels.", ephemeral=True
+        )
 
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="finish_channels",
-                          description="finish channels for semester")
+    @app_commands.command(name="finish_channels", description="finish channels for semester")
     @app_commands.guild_only
     async def commit(self, interaction: discord.Interaction, category: discord.CategoryChannel, old_semester: str):
         await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
@@ -259,12 +238,9 @@ class Misc(commands.Cog):
 
         await interaction.followup.send(f"Sent messages...", ephemeral=True)
 
-
-
-# This method was scratched with GPT4 and heavily modified by myself (honestly would have been faster on my own)
+    # This method was scratched with GPT4 and heavily modified by myself (honestly would have been faster on my own)
     # parsing just ins't beautiful, but it came out better than I first envisioned
-    async def parse_message(self, message: discord.Message) -> dict[
-        discord.TextChannel, list[int]]:
+    async def parse_message(self, message: discord.Message) -> dict[discord.TextChannel, list[int]]:
         """
         Parse a discord message and build a dictionary of channels to members.
 
@@ -278,12 +254,12 @@ class Misc(commands.Cog):
         guild = message.guild
 
         parsed_dict = {}
-        lines = message.content.split('\n')
+        lines = message.content.split("\n")
         current_channel = None
 
         for line in lines:
             # Ignore lines that have more than one mention or no mentions at all
-            matches = re.findall(r'\d+', line)
+            matches = re.findall(r"\d+", line)
             if len(matches) != 1:
                 continue
 
@@ -294,7 +270,7 @@ class Misc(commands.Cog):
             # (mention must be at the start of the line, otherwise we ignore it)
 
             # Check if the line contains a channel mention
-            if line.startswith('<#'):
+            if line.startswith("<#"):
                 # Extract the channel ID from the mention
                 current_channel = await guild.fetch_channel(elm_id)  # Get the channel object
 
@@ -305,7 +281,7 @@ class Misc(commands.Cog):
                 parsed_dict[current_channel] = []  # Initialize the member list for this channel
 
             # Check if the line contains a user mention (prevent role mentions)
-            elif line.startswith('<@') and not line.startswith("<@&"):
+            elif line.startswith("<@") and not line.startswith("<@&"):
                 if current_channel is None:
                     logger.warning(f"Current-channel is None, can't add member {elm_id} to dict. Continuing...")
                     continue
@@ -316,9 +292,11 @@ class Misc(commands.Cog):
         return parsed_dict
 
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="role_backup",
-                          description="Clone module channels. Prototype Channel/role represent how to model perms, "
-                                      "using category as base.")
+    @app_commands.command(
+        name="role_backup",
+        description="Clone module channels. Prototype Channel/role represent how to model perms, "
+        "using category as base.",
+    )
     @app_commands.guild_only
     async def role_backup(self, interaction: discord.Interaction):
 
@@ -333,7 +311,7 @@ class Misc(commands.Cog):
                 "role_name": role.name,
                 "count": len(role.members),
                 "members": [m.id for m in role.members],
-                "role_pos": role.position
+                "role_pos": role.position,
             }
             statistics[role.id] = role_info
 
@@ -347,18 +325,19 @@ class Misc(commands.Cog):
         await interaction.followup.send(f"Written to: {file.absolute()}", ephemeral=True, file=discord.File(file))
 
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="toggle_role_for_category",
-                          description="Give role read+view+write permissions or remove them. "
-                                      "Removal: you can delete the overwrite.")
+    @app_commands.command(
+        name="toggle_role_for_category",
+        description="Give role read+view+write permissions or remove them. " "Removal: you can delete the overwrite.",
+    )
     @app_commands.guild_only
     async def toggle_role_for_category(
-            self,
-            interaction: discord.Interaction,
-            category: discord.CategoryChannel,
-            role: discord.Role,
-            read: bool,
-            write: bool,
-            delete: bool = False
+        self,
+        interaction: discord.Interaction,
+        category: discord.CategoryChannel,
+        role: discord.Role,
+        read: bool,
+        write: bool,
+        delete: bool = False,
     ):
         resp: discord.InteractionResponse = interaction.response
         await resp.defer(ephemeral=True, thinking=True)
@@ -380,17 +359,17 @@ class Misc(commands.Cog):
                 )
                 continue
 
-            await channel.set_permissions(
-                role,
-                overwrite=overwrite
-            )
+            await channel.set_permissions(role, overwrite=overwrite)
             print(f"Done for {channel.name}, {channel.id}")
 
         await interaction.followup.send("Done :)")
 
     @commands.has_permissions(administrator=True)
     @commands.command(name="collect")
-    async def collect_roles(self, ctx: commands.Context,):
+    async def collect_roles(
+        self,
+        ctx: commands.Context,
+    ):
         guild = ctx.guild
 
         role_dict = defaultdict(list)
@@ -405,7 +384,6 @@ class Misc(commands.Cog):
         data_file.write_text(json.dumps(role_dict, indent=4))
 
         print(f"written to {data_file.as_posix()}")
-
 
     @staticmethod
     def get_role_by_name(guild: discord.Guild, role_name: str) -> discord.Role | None:
@@ -445,8 +423,7 @@ class Misc(commands.Cog):
                 no_move = True
                 k = k.replace("[NO MOVE]", "")
 
-
-            current_role_candidates = list(filter(lambda x: "(" not in x , role_list))
+            current_role_candidates = list(filter(lambda x: "(" not in x, role_list))
             if not current_role_candidates:
                 logger.warning(f"There is no candidate role for {role.name}, skipping role")
                 continue
@@ -455,7 +432,6 @@ class Misc(commands.Cog):
             if current_role is None:
                 logger.warning(f"cant find role '{min(current_role_candidates)}' on guild, current_role is None")
 
-
             if len(role_list) == 1:
                 old_role_name = f"{k} (old)"
                 logger.info(f"Only one role for key={k}, creating role with name '{old_role_name}'")
@@ -463,9 +439,8 @@ class Misc(commands.Cog):
                 # TODO discord interaction (create role)
                 old_role = await guild.create_role(name=old_role_name, reason="did not exist yet")
 
-
             else:
-                old_role_renamed_candidates = list(filter(lambda x: "(old)" in x , role_list))
+                old_role_renamed_candidates = list(filter(lambda x: "(old)" in x, role_list))
                 if len(old_role_renamed_candidates) == 1:
                     orc = old_role_renamed_candidates[0]
                     old_role = self.get_role_by_name(guild, orc)
@@ -474,7 +449,7 @@ class Misc(commands.Cog):
                         continue
                     logger.info(f"Found old role {old_role.name}, {role.id}")
                 else:
-                    old_role_candidates = list(filter(lambda x: "(" in x , role_list))
+                    old_role_candidates = list(filter(lambda x: "(" in x, role_list))
                     orc = max(old_role_candidates)
                     old_role = self.get_role_by_name(guild, orc)
 
@@ -490,7 +465,6 @@ class Misc(commands.Cog):
                 logger.info(f"Renaming role '{role.name}' to '{k}', {role.id=}")
                 # TODO discord interaction (rename role)
                 role = await current_role.edit(name=k)
-
 
             if role == old_role:
                 logger.info(f"{role} is old role, not moving anyone. done with role.")
@@ -537,7 +511,6 @@ class Misc(commands.Cog):
         print(f"Done, total member interactions: {member_interaction_count}")
         await ctx.send(f"Command finished.")
 
-
     @commands.has_permissions(administrator=True)
     @commands.command("sort")
     async def sort(self, ctx: commands.Context):
@@ -569,18 +542,18 @@ class Misc(commands.Cog):
 
         logger.info(f"Command done")
 
-
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="move_members_a_to_b",
-                          description="move /copy members from A to B")
+    @app_commands.command(name="move_members_a_to_b", description="move /copy members from A to B")
     @app_commands.guild_only
-    async def move_members_a_to_b(self, interaction: discord.Interaction, source: discord.Role, target: discord.Role, move: bool = True):
+    async def move_members_a_to_b(
+        self, interaction: discord.Interaction, source: discord.Role, target: discord.Role, move: bool = True
+    ):
         await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
 
         await self.move_members_to_role(source, target, move=move)
         await interaction.followup.send("Done :)")
 
-    async def move_members_to_role(self, source: Role, target: Role,  move: bool = True):
+    async def move_members_to_role(self, source: Role, target: Role, move: bool = True):
         members = source.members
 
         # checksum_file = Path("data/role_info_1759966160.891391.json")
@@ -603,8 +576,7 @@ class Misc(commands.Cog):
         logger.info("Done")
 
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="checksum",
-                          description="move /copy members from A to B")
+    @app_commands.command(name="checksum", description="move /copy members from A to B")
     @app_commands.guild_only
     async def checksum(self, interaction: discord.Interaction):
         """guess you'll never need this again. it was for the flattening..."""
@@ -642,13 +614,19 @@ class Misc(commands.Cog):
 
                 checksum_role = interaction.guild.get_role(int(checksum_role_id))
 
-                logger.info(f"Updated {module_role} with {role_name} {'(deleted)' if checksum_role is None else '(existing)'}")
+                logger.info(
+                    f"Updated {module_role} with {role_name} {'(deleted)' if checksum_role is None else '(existing)'}"
+                )
 
             if len(aggregated_members[module_role]) == len(module_role.members):
-                logger.info(f"Sanity check for module {module_role.name} complete! (num members: {len(module_role.members)})")
+                logger.info(
+                    f"Sanity check for module {module_role.name} complete! (num members: {len(module_role.members)})"
+                )
                 continue
 
-            logger.warning(f"Missmatch for {module_role.name} ({module_role.id}): {len(aggregated_members[module_role])=}, {len(module_role.members)=}")
+            logger.warning(
+                f"Missmatch for {module_role.name} ({module_role.id}): {len(aggregated_members[module_role])=}, {len(module_role.members)=}"
+            )
 
             module_role_members_set = {m.id for m in module_role.members}
             should_be_members = aggregated_members[module_role]
@@ -669,15 +647,18 @@ class Misc(commands.Cog):
                     await member.add_roles(module_role)
                 logger.info(f"added undershoot members")
 
-
         logger.info(f"Done")
         await interaction.followup.send("Done :)", ephemeral=True)
 
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.command(name="move_to_old_role",
-                          description="move from role to role (old)")
+    @app_commands.command(name="move_to_old_role", description="move from role to role (old)")
     @app_commands.guild_only
-    async def move_to_old_role(self, interaction: discord.Interaction, category: discord.CategoryChannel, blacklist_channel: discord.TextChannel):
+    async def move_to_old_role(
+        self,
+        interaction: discord.Interaction,
+        category: discord.CategoryChannel,
+        blacklist_channel: discord.TextChannel,
+    ):
         """
         Move all members from 'module-role' to 'module-role (old)' for a full category.
 
@@ -693,7 +674,10 @@ class Misc(commands.Cog):
         # do blacklist processing
         maybe_blacklist_message = [message async for message in blacklist_channel.history(limit=1)]
         if len(maybe_blacklist_message) != 1:
-            await interaction.followup.send(f"There is not exactly ONE blacklist message in channel {blacklist_channel.mention}.\nIf you don't want a blacklist, send a message containing no mentions.", ephemeral=True)
+            await interaction.followup.send(
+                f"There is not exactly ONE blacklist message in channel {blacklist_channel.mention}.\nIf you don't want a blacklist, send a message containing no mentions.",
+                ephemeral=True,
+            )
             return
 
         blacklist_message: discord.Message = maybe_blacklist_message[0]
