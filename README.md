@@ -58,10 +58,9 @@ There is a function called `misc.merge()` that does essentially all parts that a
 
 ### Clearing the roles
 *Make a role backup using `/role_backup`
-* Specify a list of roles you wanna clear
-  * TODO: auto generate this list by passing a category and identifying the roles using `get_channel_role()`
-* Ensure that the `RoleName (old)` role exists (or let the function create that if needed - `merge()` does that)
-* Move all members from the current role to the `old`-role (`merge()` can do that)
+* Use `/move_to_old_role <cateory> <blacklist channel>` to clear the roles of the channels to be freshly set up
+  * You can blacklist roles and channels in the blacklist channel (TODO: better docs :P)
+  * If no (old)-Role exists - it will be created (wuwhu!)
 * Manually Check that all targeted roles are indeed empty
 
 ### Tutor Handling + "You're in the old semester"-message

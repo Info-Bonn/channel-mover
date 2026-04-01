@@ -9,7 +9,7 @@ from pprint import pprint
 from typing import Literal, Optional
 
 import discord
-from discord import app_commands
+from discord import app_commands, Role
 from discord.ext import commands
 from discord.ext import tasks
 from discord.ext.commands import guild_only
@@ -95,17 +95,20 @@ class Misc(commands.Cog):
     async def my_task(self):
         pass
 
-    # not used atm
     def get_channel_role(self, old_channel: discord.TextChannel,
-                         target_category: discord.CategoryChannel) -> Optional[discord.Role]:
+                         target_category: discord.CategoryChannel, additional_blacklists: list[discord.Role] = None) -> Optional[discord.Role]:
         """
         Assuming that the role in question is the only role in that channel that has permissions
         beside the roles that are in the category defined
         :returns: Role if it can be clearly determined
         """
+        if additional_blacklists is None:
+            additional_blacklists = []
         # do comprehension to filter only for role-overwrites
         base_overwrites_set = set(ov for ov in target_category.overwrites.keys() if type(ov) == discord.Role)
         overwritten_roles_set = set(ov for ov in old_channel.overwrites.keys() if type(ov) == discord.Role)
+
+        overwritten_roles_set = overwritten_roles_set - set(additional_blacklists)
 
         only_in_this_channel: set[discord.Role] = overwritten_roles_set.difference(base_overwrites_set)
         if len(only_in_this_channel) != 1:
@@ -574,6 +577,10 @@ class Misc(commands.Cog):
     async def move_members_a_to_b(self, interaction: discord.Interaction, source: discord.Role, target: discord.Role, move: bool = True):
         await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
 
+        await self.move_members_to_role(source, target, move=move)
+        await interaction.followup.send("Done :)")
+
+    async def move_members_to_role(self, source: Role, target: Role,  move: bool = True):
         members = source.members
 
         # checksum_file = Path("data/role_info_1759966160.891391.json")
@@ -594,8 +601,6 @@ class Misc(commands.Cog):
                 logger.info(f"{i} / {len(members)}")
 
         logger.info("Done")
-        await interaction.followup.send("Done :)")
-
 
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.command(name="checksum",
@@ -667,6 +672,57 @@ class Misc(commands.Cog):
 
         logger.info(f"Done")
         await interaction.followup.send("Done :)", ephemeral=True)
+
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="move_to_old_role",
+                          description="move from role to role (old)")
+    @app_commands.guild_only
+    async def move_to_old_role(self, interaction: discord.Interaction, category: discord.CategoryChannel, blacklist_channel: discord.TextChannel):
+        """
+        Move all members from 'module-role' to 'module-role (old)' for a full category.
+
+        The blacklist channel works as follows:
+        All things that are mentioned in the (only) message in this channels are excluded from processing
+        - Channels mentioned will not be searched for module-role and hence no member is moved (useful for the select-roles channel)
+        - Roles that might occur in some module channels but shall be excluded from the search for the module-channel role
+            - Roles that are configured in the category itself are excluded by default
+        """
+
+        await interaction.response.defer(ephemeral=True, thinking=True)  # okay discord. we got it.
+
+        # do blacklist processing
+        maybe_blacklist_message = [message async for message in blacklist_channel.history(limit=1)]
+        if len(maybe_blacklist_message) != 1:
+            await interaction.followup.send(f"There is not exactly ONE blacklist message in channel {blacklist_channel.mention}.\nIf you don't want a blacklist, send a message containing no mentions.", ephemeral=True)
+            return
+
+        blacklist_message: discord.Message = maybe_blacklist_message[0]
+        blacklist_roles: list[discord.Role] = blacklist_message.role_mentions
+        blacklist_channels = blacklist_message.channel_mentions
+        blacklist_channels.append(blacklist_channel)
+
+        # walk channels and move members
+        for channel in category.channels:
+
+            if channel in blacklist_channels:
+                logger.info(f"Channel {channel.mention} is on blacklist - skipping")
+                continue
+
+            logger.info(f"Processing channel {channel.name}")
+            channel_role = self.get_channel_role(channel, category, blacklist_roles)
+
+            old_role_name = f"{channel_role.name} (old)"
+            old_role = self.get_role_by_name(interaction.guild, old_role_name)
+
+            if old_role is None:
+                logger.warning(f"Created '{old_role_name}' because it didn't exist yet.")
+                old_role = await interaction.guild.create_role(name=old_role_name, reason="did not exist yet")
+
+            await self.move_members_to_role(channel_role, old_role)
+
+        await interaction.followup.send(f"Done. For all channels :)", ephemeral=True)
+        logger.info(f"Done :)")
+
 
 async def setup(bot):
     await bot.add_cog(Misc(bot))
