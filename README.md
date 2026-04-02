@@ -70,6 +70,7 @@ There is a function called `misc.merge()` that does essentially all parts that a
   * Do a manual sanity check if nobody was mentioned that didn't want to be.
 * Use `/finish_channels` on the category you wanna close. Provide the old semester tag to it.
   * The bot will send the closure message and attach the tutors if any.
+  * See below for how the tutor documentation 'system' works
 
 * Remember to remove all tutors that are no longer tutors. I tried automatic it based on a message reaction, but it sucked.
 
